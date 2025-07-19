@@ -171,6 +171,16 @@ public struct CopTag
     }
 }
 
+public struct WallTag
+{
+    public string WallType;
+    
+    public WallTag(string wallType = "wall")
+    {
+        WallType = wallType;
+    }
+}
+
 // Room bounds constraint
 public struct BoundsConstraintComponent
 {

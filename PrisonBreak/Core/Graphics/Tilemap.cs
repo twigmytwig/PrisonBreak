@@ -107,6 +107,18 @@ public class Tilemap
     }
 
     /// <summary>
+    /// Gets the tileset ID of the tile at the specified column and row.
+    /// </summary>
+    /// <param name="column">The column of the tile in this tilemap.</param>
+    /// <param name="row">The row of the tile in this tilemap.</param>
+    /// <returns>The tileset ID of the tile at the specified column and row.</returns>
+    public int GetTileId(int column, int row)
+    {
+        int index = row * Columns + column;
+        return _tiles[index];
+    }
+
+    /// <summary>
     /// Draws this tilemap using the given sprite batch.
     /// </summary>
     /// <param name="spriteBatch">The sprite batch used to draw this tilemap.</param>

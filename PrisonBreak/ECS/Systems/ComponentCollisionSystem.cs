@@ -180,12 +180,15 @@ public class ComponentCollisionSystem : IGameSystem
         // Check collisions between players and cops
         var players = _entityManager.GetEntitiesWith<PlayerTag, CollisionComponent>();
         var cops = _entityManager.GetEntitiesWith<CopTag, CollisionComponent>();
+        var walls = _entityManager.GetEntitiesWith<WallTag, CollisionComponent>();
+        
         
         foreach (var player in players)
         {
             var playerBounds = player.GetComponent<CollisionComponent>().Collider.rectangleCollider;
             var playerTransform = player.GetComponent<TransformComponent>();
             
+            // Check player-cop collisions
             foreach (var cop in cops)
             {
                 var copBounds = cop.GetComponent<CollisionComponent>().Collider.rectangleCollider;
@@ -213,6 +216,69 @@ public class ComponentCollisionSystem : IGameSystem
                         collisionPoint, 
                         normal
                     ));
+                }
+            }
+            
+            // Check player-wall collisions
+            foreach (var wall in walls)
+            {
+                var wallBounds = wall.GetComponent<CollisionComponent>().Collider.rectangleCollider;
+                var wallTransform = wall.GetComponent<TransformComponent>();
+                
+                if (playerBounds.Intersects(wallBounds))
+                {
+                    // Calculate collision normal (direction to push player away from wall)
+                    Vector2 playerCenter = new Vector2(playerBounds.Center.X, playerBounds.Center.Y);
+                    Vector2 wallCenter = new Vector2(wallBounds.Center.X, wallBounds.Center.Y);
+                    Vector2 direction = playerCenter - wallCenter;
+                    
+                    if (direction.LengthSquared() > 0)
+                    {
+                        direction.Normalize();
+                    }
+                    else
+                    {
+                        direction = Vector2.UnitY; // Default direction
+                    }
+                    
+                    // Calculate penetration depth
+                    float penetrationX = (playerBounds.Width + wallBounds.Width) / 2f - Math.Abs(playerCenter.X - wallCenter.X);
+                    float penetrationY = (playerBounds.Height + wallBounds.Height) / 2f - Math.Abs(playerCenter.Y - wallCenter.Y);
+                    
+                    // Move player out of wall
+                    ref var transform = ref player.GetComponent<TransformComponent>();
+                    
+                    if (penetrationX < penetrationY)
+                    {
+                        // Horizontal collision - push horizontally
+                        if (playerCenter.X < wallCenter.X)
+                        {
+                            transform.Position.X = wallBounds.Left - playerBounds.Width;
+                        }
+                        else
+                        {
+                            transform.Position.X = wallBounds.Right;
+                        }
+                    }
+                    else
+                    {
+                        // Vertical collision - push vertically
+                        if (playerCenter.Y < wallCenter.Y)
+                        {
+                            transform.Position.Y = wallBounds.Top - playerBounds.Height;
+                        }
+                        else
+                        {
+                            transform.Position.Y = wallBounds.Bottom;
+                        }
+                    }
+                    
+                    // Stop player movement
+                    if (player.HasComponent<MovementComponent>())
+                    {
+                        ref var movement = ref player.GetComponent<MovementComponent>();
+                        movement.Velocity = Vector2.Zero;
+                    }
                 }
             }
         }
