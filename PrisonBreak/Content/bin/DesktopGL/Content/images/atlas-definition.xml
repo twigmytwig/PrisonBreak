@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas>
+    <Texture>images/PrisonerBreak</Texture>
+    <Regions>
+        <Region name="prisoner-1" x="0" y="0" width="32" height="32" />
+        <Region name="prisoner-2" x="32" y="0" width="32" height="32" />
+        <Region name="prisoner-3" x="64" y="0" width="32" height="32" />
+        <Region name="cop-1" x="0" y="32" width="32" height="32" />
+        <Region name="cop-2" x="32" y="32" width="32" height="32" />
+        <Region name="cop-3" x="64" y="32" width="32" height="32" />
+    </Regions>
+    <Animations>
+        <Animation name="prisoner-animation" delay="200">
+            <Frame region="prisoner-1" />
+            <Frame region="prisoner-2" />
+            <Frame region="prisoner-3" />
+        </Animation>
+        <Animation name="cop-animation" delay="200">
+            <Frame region="cop-1" />
+            <Frame region="cop-2" />
+            <Frame region="cop-3" />
+        </Animation>
+    </Animations>
+</TextureAtlas>
+
