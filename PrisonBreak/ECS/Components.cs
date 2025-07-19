@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
-using MonoGameLibrary.Graphics;
-using MonoGameLibrary.RectangleCollider;
+using PrisonBreak.Core.Graphics;
+using PrisonBreak.Core.Physics;
 
 namespace PrisonBreak.ECS;
 

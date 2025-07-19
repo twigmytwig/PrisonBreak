@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
-using MonoGameLibrary.Graphics;
-using MonoGameLibrary.RectangleCollider;
+using PrisonBreak.Core.Graphics;
+using PrisonBreak.Core.Physics;
 using PrisonBreak.Config;
 
 namespace PrisonBreak.ECS;
