@@ -1,12 +1,11 @@
-﻿using System;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGameLibrary;
 using MonoGameLibrary.Graphics;
 using MonoGameLibrary.Input;
 using MonoGameLibrary.Player;
-using MonoGameLibrary.RectangleCollider;
+using MonoGameLibrary.Enemy;
 using PrisonBreak.Initializer;
 
 namespace PrisonBreak;
@@ -16,17 +15,11 @@ public class Game1 : Core
     // Defines the slime animated sprite.
     private Player _prisoner;
 
-    // Defines the bat animated sprite.
-    private AnimatedSprite _cop;
+    // Defines the cop enemy.
+    private Cop _cop;
 
     // Speed multiplier when moving.
     private const float MOVEMENT_SPEED = 5.0f;
-
-    // Tracks the position of the bat.
-    private Vector2 _copPosition;
-
-    // Tracks the velocity of the bat.
-    private Vector2 _copVelocity;
 
     // Defines the tilemap to draw.
     private Tilemap _tilemap;
@@ -56,11 +49,6 @@ public class Game1 : Core
              screenBounds.Height - (int)_tilemap.TileHeight * 2
          );
 
-        // Initial bat position will be in the top left corner of the room
-        _copPosition = new Vector2(_roomBounds.Left, _roomBounds.Top);
-
-        // Assign the initial random velocity to the bat.
-        AssignRandomCopVelocity();
     }
 
     protected override void LoadContent()
@@ -82,9 +70,15 @@ public class Game1 : Core
             animationName: "prisoner-animation",
             scale: new Vector2(4.0f, 4.0f));
 
-        // Create the bat animated sprite from the atlas.
-        _cop = atlas.CreateAnimatedSprite("cop-animation");
-        _cop.Scale = new Vector2(4.0f, 4.0f);
+        // Create the cop enemy from the atlas.
+        AnimatedSprite copSprite = atlas.CreateAnimatedSprite("cop-animation");
+        _cop = new Cop(
+            new Vector2(_roomBounds.Left, _roomBounds.Top),
+            copSprite,
+            true,
+            new Vector2(4.0f, 4.0f)
+        );
+
     }
 
     protected override void Update(GameTime gameTime)
@@ -92,109 +86,30 @@ public class Game1 : Core
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
 
-        // Update the slime animated sprite.
-        //_prisoner.Update(gameTime);
-
-        // Update the bat animated sprite.
-        //_cop.Update(gameTime);
-
         // Check for keyboard input and handle it.
         CheckKeyboardInput();
 
         // Check for gamepad input and handle it.
         CheckGamePadInput();
 
-        // Creating a smaller bounding rectangle for the prisoner (about 70% of sprite size for better gameplay)
-        //_prisoner.UpdateCollider();
-
         // Keep prisoner within room bounds
         ConstrainPrisonerToBounds();
 
-        // Calculate the new position of the bat based on the velocity
-        Vector2 newCopPosition = _copPosition + _copVelocity;
-
-        // Create a bounding circle for the bat
-        //TODO: MAKE THIS ENTITY SIMILAR TO PLAYER
-        int copspriteWidth = (int)(_cop.Width);
-        int copspriteHeight = (int)(_cop.Height);
-        int copcollisionWidth = (int)(32 * 4 * 0.5f);
-        int copcollisionHeight = (int)(32 * 4 * 1f);
-        _cop.RectangleCollider = new RectangleCollider(
-            (int)(_copPosition.X + (copspriteWidth - copcollisionWidth) / 2),
-            (int)(_copPosition.Y + (copspriteHeight - copcollisionHeight) / 2),
-            copcollisionWidth,
-            copcollisionHeight,
-            true);
-
-        Vector2 normal = Vector2.Zero;
-
-        // Use distance based checks to determine if the bat is within the
-        // bounds of the game screen, and if it is outside that screen edge,
-        // reflect it about the screen edge normal
-        if (_cop.RectangleCollider.rectangleCollider.Left < _roomBounds.Left)
-        {
-            normal.X = Vector2.UnitX.X;
-            newCopPosition.X = _roomBounds.Left;
-        }
-        else if (_cop.RectangleCollider.rectangleCollider.Right > _roomBounds.Right)
-        {
-            normal.X = -Vector2.UnitX.X;
-            newCopPosition.X = _roomBounds.Right - _cop.Width;
-        }
-
-        if (_cop.RectangleCollider.rectangleCollider.Top < _roomBounds.Top)
-        {
-            normal.Y = Vector2.UnitY.Y;
-            newCopPosition.Y = _roomBounds.Top;
-        }
-        else if (_cop.RectangleCollider.rectangleCollider.Bottom > _roomBounds.Bottom)
-        {
-            normal.Y = -Vector2.UnitY.Y;
-            newCopPosition.Y = _roomBounds.Bottom - _cop.Height;
-        }
-
-        // If the normal is anything but Vector2.Zero, this means the bat had
-        // moved outside the screen edge so we should reflect it about the
-        // normal.
-        if (normal != Vector2.Zero)
-        {
-            _copVelocity = Vector2.Reflect(_copVelocity, normal);
-        }
-
-        _copPosition = newCopPosition;
-
-
-        if (_prisoner.GetBounds().Intersects(_cop.RectangleCollider.rectangleCollider))
-        {
-            int column = Random.Shared.Next(1, _tilemap.Columns - 1);
-            int row = Random.Shared.Next(1, _tilemap.Rows - 1);
-
-            // Change the bat position by setting the x and y values equal to
-            // the column and row multiplied by the width and height.
-            _copPosition = new Vector2(column * _cop.Width, row * _cop.Height);
-
-            // Assign a new random velocity to the bat
-            AssignRandomCopVelocity();
-        }
-
-        _prisoner.Sprite.Update(gameTime);
+        // Update cop movement and handle bounds collision
         _cop.Update(gameTime);
+        _cop.ConstrainToBounds(_roomBounds);
+
+        // Check for player-cop collision
+        if (_prisoner.GetBounds().Intersects(_cop.GetBounds()))
+        {
+            // Teleport cop to random position
+            _cop.TeleportToRandomPosition(_roomBounds, _tilemap.TileWidth, _tilemap.TileHeight);
+        }
+
+        _prisoner.Update(gameTime);
         base.Update(gameTime);
     }
 
-    private void AssignRandomCopVelocity()
-    {
-        // Generate a random angle
-        float angle = (float)(Random.Shared.NextDouble() * Math.PI * 2);
-
-        // Convert angle to a direction vector
-        float x = (float)Math.Cos(angle);
-        float y = (float)Math.Sin(angle);
-        Vector2 direction = new Vector2(x, y);
-
-        // Multiply the direction vector by the movement speed
-        _copVelocity = direction * MOVEMENT_SPEED;
-    }
 
     private void CheckKeyboardInput()
     {
@@ -323,7 +238,7 @@ public class Game1 : Core
 
     protected override void Draw(GameTime gameTime)
     {
-        // Create debug texture on first draw call when GraphicsDevice is ready
+        // Create debug textures once when GraphicsDevice is ready
         if (_debugTexture == null)
         {
             _debugTexture = new Texture2D(GraphicsDevice, 1, 1);
@@ -345,13 +260,13 @@ public class Game1 : Core
         // Draw the prisoner sprite at its position
         _prisoner.Draw(SpriteBatch);
 
-        // Draw the bat sprite.
-        _cop.Draw(SpriteBatch, _copPosition);
+        // Draw the cop sprite.
+        _cop.Draw(SpriteBatch);
 
         if (_prisoner.DebugMode)
         {
             _prisoner.Collider.Draw(SpriteBatch, Color.Red, _debugTexture, 2);
-            _cop.RectangleCollider.Draw(SpriteBatch, Color.Blue, _debugCopTexture, 2);
+            _cop.Collider.Draw(SpriteBatch, Color.Blue, _debugCopTexture, 2);
         }
 
         // Always end the sprite batch when finished.

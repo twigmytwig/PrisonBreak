@@ -37,13 +37,7 @@ public static class InitializeGameObjects
     public static Player InitPlayer(bool isDebug, Vector2 pos, TextureAtlas atlas, string animationName, Vector2 scale)
     {
         AnimatedSprite playerSprite = atlas.CreateAnimatedSprite(animationName);
-        var _collider = new RectangleCollider(
-                (int)(pos.X + (playerSprite.Width - playerSprite.Width * 0.5f) / 2),
-                (int)(pos.Y + (playerSprite.Height - playerSprite.Height) / 2),
-                (int)(playerSprite.Width * 0.5f),
-                (int)(playerSprite.Height * 1f),
-                isDebug);
-        Player player = new Player(pos, playerSprite, _collider, isDebug, scale);
+        Player player = new Player(pos, playerSprite, null, isDebug, scale);
         return player;
     }
 }
