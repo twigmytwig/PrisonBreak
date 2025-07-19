@@ -19,6 +19,7 @@ public class Game1 : Core
     private EventBus _eventBus;
     
     private ComponentInputSystem _inputSystem;
+    private AnimationSystem _animationSystem;
     private ComponentMovementSystem _movementSystem;
     private ComponentCollisionSystem _collisionSystem;
     private ComponentRenderSystem _renderSystem;
@@ -45,6 +46,7 @@ public class Game1 : Core
         
         // Create component-based systems
         _inputSystem = new ComponentInputSystem();
+        _animationSystem = new AnimationSystem(_entityManager);
         _movementSystem = new ComponentMovementSystem();
         _collisionSystem = new ComponentCollisionSystem();
         _renderSystem = new ComponentRenderSystem();
@@ -64,6 +66,7 @@ public class Game1 : Core
         
         // Add systems to manager in execution order
         _systemManager.AddSystem(_inputSystem);
+        _systemManager.AddSystem(_animationSystem);  // Add after input, before movement
         _systemManager.AddSystem(_movementSystem);
         _systemManager.AddSystem(_collisionSystem);
         _systemManager.AddSystem(_renderSystem);

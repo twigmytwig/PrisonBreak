@@ -39,19 +39,8 @@ public class ComponentRenderSystem : IGameSystem
     
     public void Update(GameTime gameTime)
     {
-        if (_entityManager == null) return;
-        
-        // Update sprite animations for all entities with sprites
-        var spritedEntities = _entityManager.GetEntitiesWith<SpriteComponent>();
-        
-        foreach (var entity in spritedEntities)
-        {
-            ref var sprite = ref entity.GetComponent<SpriteComponent>();
-            if (sprite.Visible && sprite.Sprite != null)
-            {
-                sprite.Sprite.Update(gameTime);
-            }
-        }
+        // ComponentRenderSystem doesn't need to update anything
+        // Animation updates are handled by AnimationSystem
     }
     
     public void Draw(SpriteBatch spriteBatch)
@@ -108,11 +97,15 @@ public class ComponentRenderSystem : IGameSystem
     
     private void DrawSprite(SpriteBatch spriteBatch, SpriteComponent sprite, TransformComponent transform)
     {
-        if (sprite.Sprite == null) return;
+        if (sprite.Sprite == null || sprite.Sprite.Animation == null) return;
         
-        // Always apply scaling since entities are created with scale
-        sprite.Sprite.Scale = transform.Scale;
-        sprite.Sprite.Draw(spriteBatch, transform.Position);
+        // Get the current texture region from the animated sprite
+        var currentRegion = sprite.Sprite.CurrentRegion;
+        if (currentRegion == null) return;
+        
+        // Draw the current frame directly using the texture region
+        currentRegion.Draw(spriteBatch, transform.Position, sprite.Tint, transform.Rotation, 
+            Vector2.Zero, transform.Scale, SpriteEffects.None, 0f);
     }
     
     private void DrawDebugInformation(SpriteBatch spriteBatch)
@@ -133,23 +126,7 @@ public class ComponentRenderSystem : IGameSystem
             }
         }
         
-        // Also draw debug info for any entity that has collision and the old debug mode
-        var legacyDebugEntities = _entityManager.GetEntitiesWith<CollisionComponent>()
-            .Where(e => e.GetComponent<CollisionComponent>().Collider.DebugMode && !e.HasComponent<DebugComponent>());
-            
-        foreach (var entity in legacyDebugEntities)
-        {
-            var collision = entity.GetComponent<CollisionComponent>();
-            
-            // Use default colors based on entity type
-            Color debugColor = GameConfig.PlayerColliderColor;
-            if (entity.HasComponent<CopTag>())
-            {
-                debugColor = GameConfig.CopColliderColor;
-            }
-            
-            DrawCollisionBounds(spriteBatch, collision, debugColor, GameConfig.ColliderDebugThickness);
-        }
+        // Note: Legacy debug mode removed - use DebugComponent instead
     }
     
     private void DrawCollisionBounds(SpriteBatch spriteBatch, CollisionComponent collision, DebugComponent debug)

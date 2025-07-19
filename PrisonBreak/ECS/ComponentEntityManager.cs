@@ -171,24 +171,39 @@ public class ComponentEntityManager
         var entity = CreateEntity();
         
         // Transform
-        entity.AddComponent(new TransformComponent(position, EntityConfig.Player.Scale));
+        var transform = new TransformComponent(position, EntityConfig.Player.Scale);
+        entity.AddComponent(transform);
         
         // Sprite
         var sprite = _atlas.CreateAnimatedSprite(EntityConfig.Player.AnimationName);
         entity.AddComponent(new SpriteComponent(sprite));
         
+        // Animation
+        entity.AddComponent(new AnimationComponent(sprite));
+        
         // Movement
         entity.AddComponent(new MovementComponent(GameConfig.BaseMovementSpeed));
         
-        // Collision
-        var colliderWidth = sprite.Width * GameConfig.ColliderWidthRatio;
-        var colliderHeight = sprite.Height * GameConfig.ColliderHeightRatio;
+        // Collision - get dimensions from sprite's current region and apply scale
+        float spriteWidth = 32f; // Default
+        float spriteHeight = 32f; // Default
+        if (sprite.CurrentRegion != null)
+        {
+            spriteWidth = sprite.CurrentRegion.Width;
+            spriteHeight = sprite.CurrentRegion.Height;
+        }
+        
+        // Apply transform scale to sprite dimensions
+        float scaledWidth = spriteWidth * transform.Scale.X;
+        float scaledHeight = spriteHeight * transform.Scale.Y;
+        
+        var colliderWidth = scaledWidth * GameConfig.ColliderWidthRatio;
+        var colliderHeight = scaledHeight * GameConfig.ColliderHeightRatio;
         var collider = new RectangleCollider(
-            (int)(position.X + (sprite.Width - colliderWidth) / 2),
-            (int)(position.Y + (sprite.Height - colliderHeight) / 2),
+            (int)(position.X + (scaledWidth - colliderWidth) / 2),
+            (int)(position.Y + (scaledHeight - colliderHeight) / 2),
             (int)colliderWidth,
-            (int)colliderHeight,
-            EntityConfig.Player.DebugMode
+            (int)colliderHeight
         );
         entity.AddComponent(new CollisionComponent(collider));
         
@@ -216,24 +231,39 @@ public class ComponentEntityManager
         var entity = CreateEntity();
         
         // Transform
-        entity.AddComponent(new TransformComponent(position, EntityConfig.Cop.Scale));
+        var transform = new TransformComponent(position, EntityConfig.Cop.Scale);
+        entity.AddComponent(transform);
         
         // Sprite
         var sprite = _atlas.CreateAnimatedSprite(EntityConfig.Cop.AnimationName);
         entity.AddComponent(new SpriteComponent(sprite));
         
+        // Animation
+        entity.AddComponent(new AnimationComponent(sprite));
+        
         // Movement
         entity.AddComponent(new MovementComponent(EntityConfig.Cop.MovementSpeed));
         
-        // Collision
-        var colliderWidth = sprite.Width * GameConfig.ColliderWidthRatio;
-        var colliderHeight = sprite.Height * GameConfig.ColliderHeightRatio;
+        // Collision - get dimensions from sprite's current region and apply scale
+        float spriteWidth = 32f; // Default
+        float spriteHeight = 32f; // Default
+        if (sprite.CurrentRegion != null)
+        {
+            spriteWidth = sprite.CurrentRegion.Width;
+            spriteHeight = sprite.CurrentRegion.Height;
+        }
+        
+        // Apply transform scale to sprite dimensions
+        float scaledWidth = spriteWidth * transform.Scale.X;
+        float scaledHeight = spriteHeight * transform.Scale.Y;
+        
+        var colliderWidth = scaledWidth * GameConfig.ColliderWidthRatio;
+        var colliderHeight = scaledHeight * GameConfig.ColliderHeightRatio;
         var collider = new RectangleCollider(
-            (int)(position.X + (sprite.Width - colliderWidth) / 2),
-            (int)(position.Y + (sprite.Height - colliderHeight) / 2),
+            (int)(position.X + (scaledWidth - colliderWidth) / 2),
+            (int)(position.Y + (scaledHeight - colliderHeight) / 2),
             (int)colliderWidth,
-            (int)colliderHeight,
-            EntityConfig.Cop.DebugMode
+            (int)colliderHeight
         );
         entity.AddComponent(new CollisionComponent(collider));
         

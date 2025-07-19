@@ -254,28 +254,40 @@ public class ComponentCollisionSystem : IGameSystem
     {
         if (entity.HasComponent<SpriteComponent>())
         {
-            var sprite = entity.GetComponent<SpriteComponent>();
-            return sprite.Sprite.Width * GameConfig.ColliderXOffsetRatio;
+            var width = GetSpriteWidth(entity);
+            return width * GameConfig.ColliderXOffsetRatio;
         }
         return 0f;
     }
     
     private float GetSpriteWidth(Entity entity)
     {
-        if (entity.HasComponent<SpriteComponent>())
+        if (entity.HasComponent<SpriteComponent>() && entity.HasComponent<TransformComponent>())
         {
             var sprite = entity.GetComponent<SpriteComponent>();
-            return sprite.Sprite.Width;
+            var transform = entity.GetComponent<TransformComponent>();
+            
+            if (sprite.Sprite?.CurrentRegion != null)
+            {
+                // Apply transform scale to sprite width
+                return sprite.Sprite.CurrentRegion.Width * transform.Scale.X;
+            }
         }
         return 32f; // Default size
     }
     
     private float GetSpriteHeight(Entity entity)
     {
-        if (entity.HasComponent<SpriteComponent>())
+        if (entity.HasComponent<SpriteComponent>() && entity.HasComponent<TransformComponent>())
         {
             var sprite = entity.GetComponent<SpriteComponent>();
-            return sprite.Sprite.Height;
+            var transform = entity.GetComponent<TransformComponent>();
+            
+            if (sprite.Sprite?.CurrentRegion != null)
+            {
+                // Apply transform scale to sprite height
+                return sprite.Sprite.CurrentRegion.Height * transform.Scale.Y;
+            }
         }
         return 32f; // Default size
     }

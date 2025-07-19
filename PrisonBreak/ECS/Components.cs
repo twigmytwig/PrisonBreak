@@ -118,6 +118,23 @@ public enum AIBehavior
     Guard
 }
 
+// Animation control
+public struct AnimationComponent
+{
+    public AnimatedSprite AnimatedSprite;
+    public bool IsPlaying;
+    public bool Loop;
+    public double ElapsedTime;
+    
+    public AnimationComponent(AnimatedSprite animatedSprite)
+    {
+        AnimatedSprite = animatedSprite;
+        IsPlaying = true;
+        Loop = true;
+        ElapsedTime = 0.0;
+    }
+}
+
 // Debug information
 public struct DebugComponent
 {

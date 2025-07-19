@@ -1,26 +1,37 @@
-using System;
 using Microsoft.Xna.Framework;
 
 namespace MonoGameLibrary.Graphics;
 
-public class AnimatedSprite : Sprite
+/// <summary>
+/// Pure data class for animated sprites. 
+/// Animation logic should be handled by AnimationSystem in ECS.
+/// </summary>
+public class AnimatedSprite
 {
-    private int _currentFrame;
-    private TimeSpan _elapsed;
-    private Animation _animation;
+    /// <summary>
+    /// Gets or Sets the animation definition for this animated sprite.
+    /// </summary>
+    public Animation Animation { get; set; }
 
     /// <summary>
-    /// Gets or Sets the animation for this animated sprite.
+    /// Gets or Sets the current frame index.
     /// </summary>
-    public Animation Animation
-    {
-        get => _animation;
-        set
-        {
-            _animation = value;
-            Region = _animation.Frames[0];
-        }
-    }
+    public int CurrentFrame { get; set; }
+
+    /// <summary>
+    /// Gets or Sets the elapsed time since last frame change.
+    /// </summary>
+    public double ElapsedTime { get; set; }
+
+    /// <summary>
+    /// Gets or Sets whether the animation is currently playing.
+    /// </summary>
+    public bool IsPlaying { get; set; } = true;
+
+    /// <summary>
+    /// Gets or Sets whether the animation should loop.
+    /// </summary>
+    public bool Loop { get; set; } = true;
 
     /// <summary>
     /// Creates a new animated sprite.
@@ -28,35 +39,18 @@ public class AnimatedSprite : Sprite
     public AnimatedSprite() { }
 
     /// <summary>
-    /// Creates a new animated sprite with the specified frames and delay.
+    /// Creates a new animated sprite with the specified animation.
     /// </summary>
     /// <param name="animation">The animation for this animated sprite.</param>
     public AnimatedSprite(Animation animation)
     {
         Animation = animation;
+        CurrentFrame = 0;
+        ElapsedTime = 0;
     }
 
     /// <summary>
-    /// Updates this animated sprite.
+    /// Gets the current texture region based on the current frame.
     /// </summary>
-    /// <param name="gameTime">A snapshot of the game timing values provided by the framework.</param>
-    public void Update(GameTime gameTime)
-    {
-        _elapsed += gameTime.ElapsedGameTime;
-
-        if (_elapsed >= _animation.Delay)
-        {
-            _elapsed -= _animation.Delay;
-            _currentFrame++;
-
-            if (_currentFrame >= _animation.Frames.Count)
-            {
-                _currentFrame = 0;
-            }
-
-            Region = _animation.Frames[_currentFrame];
-        }
-    }
-
-
+    public TextureRegion CurrentRegion => Animation?.Frames[CurrentFrame];
 }
