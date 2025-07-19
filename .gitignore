@@ -1,6 +1,21 @@
 # Build outputs
 bin/
 obj/
+**/bin/
+**/obj/
+
+# .NET build artifacts
+*.dll
+*.pdb
+*.cache
+*.deps.json
+*.runtimeconfig.json
+**/AssemblyInfo.cs
+**/AssemblyInfoInputs.cache
+**/AssemblyReference.cache
+**/CoreCompileInputs.cache
+**/FileListAbsolute.txt
+**/sourcelink.json
 
 # Visual Studio
 .vs/
