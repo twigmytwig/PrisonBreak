@@ -10,3 +10,4 @@
 /home/trevorhedgpeth/projects/games/prisonbreak/MonoGameLibrary/obj/Debug/net8.0/refint/MonoGameLibrary.dll
 /home/trevorhedgpeth/projects/games/prisonbreak/MonoGameLibrary/obj/Debug/net8.0/MonoGameLibrary.pdb
 /home/trevorhedgpeth/projects/games/prisonbreak/MonoGameLibrary/obj/Debug/net8.0/ref/MonoGameLibrary.dll
+/home/trevorhedgpeth/projects/games/prisonbreak/MonoGameLibrary/obj/Debug/net8.0/MonoGameLibrary.sourcelink.json

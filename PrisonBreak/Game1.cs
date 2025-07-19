@@ -164,7 +164,7 @@ public class Game1 : Core
         _copPosition = newCopPosition;
 
 
-        if (_prisoner._collider.rectangleCollider.Intersects(_cop.RectangleCollider.rectangleCollider))
+        if (_prisoner.GetBounds().Intersects(_cop.RectangleCollider.rectangleCollider))
         {
             int column = Random.Shared.Next(1, _tilemap.Columns - 1);
             int row = Random.Shared.Next(1, _tilemap.Rows - 1);
@@ -177,7 +177,7 @@ public class Game1 : Core
             AssignRandomCopVelocity();
         }
 
-        _prisoner._sprite.Update(gameTime);
+        _prisoner.Sprite.Update(gameTime);
         _cop.Update(gameTime);
         base.Update(gameTime);
     }
@@ -208,55 +208,55 @@ public class Game1 : Core
         // If the W or Up keys are down, move the slime up on the screen.
         if (Input.Keyboard.IsKeyDown(Keys.W) || Input.Keyboard.IsKeyDown(Keys.Up))
         {
-            _prisoner.UpdatePosition(new Vector2(_prisoner._position.X, _prisoner._position.Y - speed));
+            _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X, _prisoner.Position.Y - speed));
         }
 
         // if the S or Down keys are down, move the slime down on the screen.
         if (Input.Keyboard.IsKeyDown(Keys.S) || Input.Keyboard.IsKeyDown(Keys.Down))
         {
-            _prisoner.UpdatePosition(new Vector2(_prisoner._position.X, _prisoner._position.Y + speed));
+            _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X, _prisoner.Position.Y + speed));
         }
 
         // If the A or Left keys are down, move the slime left on the screen.
         if (Input.Keyboard.IsKeyDown(Keys.A) || Input.Keyboard.IsKeyDown(Keys.Left))
         {
-            _prisoner.UpdatePosition(new Vector2(_prisoner._position.X - speed, _prisoner._position.Y));
+            _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X - speed, _prisoner.Position.Y));
         }
 
         // If the D or Right keys are down, move the slime right on the screen.
         if (Input.Keyboard.IsKeyDown(Keys.D) || Input.Keyboard.IsKeyDown(Keys.Right))
         {
-            _prisoner.UpdatePosition(new Vector2(_prisoner._position.X + speed, _prisoner._position.Y));
+            _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X + speed, _prisoner.Position.Y));
         }
     }
 
     private void ConstrainPrisonerToBounds()
     {
-        Vector2 newPosition = _prisoner._position;
+        Vector2 newPosition = _prisoner.Position;
         bool positionChanged = false;
 
         // Calculate offsets based on collider being 50% width, 100% height, centered horizontally
-        float colliderXOffset = _prisoner._sprite.Width * 0.25f;
+        float colliderXOffset = _prisoner.Sprite.Width * 0.25f;
 
-        if (_prisoner._collider.rectangleCollider.Left < _roomBounds.Left)
+        if (_prisoner.Collider.rectangleCollider.Left < _roomBounds.Left)
         {
             newPosition.X = _roomBounds.Left - colliderXOffset;
             positionChanged = true;
         }
-        else if (_prisoner._collider.rectangleCollider.Right > _roomBounds.Right)
+        else if (_prisoner.Collider.rectangleCollider.Right > _roomBounds.Right)
         {
-            newPosition.X = _roomBounds.Right - _prisoner._sprite.Width + colliderXOffset;
+            newPosition.X = _roomBounds.Right - _prisoner.Sprite.Width + colliderXOffset;
             positionChanged = true;
         }
 
-        if (_prisoner._collider.rectangleCollider.Top < _roomBounds.Top)
+        if (_prisoner.Collider.rectangleCollider.Top < _roomBounds.Top)
         {
             newPosition.Y = _roomBounds.Top;
             positionChanged = true;
         }
-        else if (_prisoner._collider.rectangleCollider.Bottom > _roomBounds.Bottom)
+        else if (_prisoner.Collider.rectangleCollider.Bottom > _roomBounds.Bottom)
         {
-            newPosition.Y = _roomBounds.Bottom - _prisoner._sprite.Height;
+            newPosition.Y = _roomBounds.Bottom - _prisoner.Sprite.Height;
             positionChanged = true;
         }
 
@@ -289,7 +289,7 @@ public class Game1 : Core
         // more granular analog value that can be used for movement.
         if (gamePadOne.LeftThumbStick != Vector2.Zero)
         {
-            Vector2 newPos = new Vector2(_prisoner._position.X + gamePadOne.LeftThumbStick.X * speed, _prisoner._position.Y - gamePadOne.LeftThumbStick.Y * speed);
+            Vector2 newPos = new Vector2(_prisoner.Position.X + gamePadOne.LeftThumbStick.X * speed, _prisoner.Position.Y - gamePadOne.LeftThumbStick.Y * speed);
             _prisoner.UpdatePosition(newPos);
         }
         else
@@ -297,25 +297,25 @@ public class Game1 : Core
             // If DPadUp is down, move the slime up on the screen.
             if (gamePadOne.IsButtonDown(Buttons.DPadUp))
             {
-                _prisoner.UpdatePosition(new Vector2(_prisoner._position.X, _prisoner._position.Y - speed));
+                _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X, _prisoner.Position.Y - speed));
             }
 
             // If DPadDown is down, move the slime down on the screen.
             if (gamePadOne.IsButtonDown(Buttons.DPadDown))
             {
-                _prisoner.UpdatePosition(new Vector2(_prisoner._position.X, _prisoner._position.Y + speed));
+                _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X, _prisoner.Position.Y + speed));
             }
 
             // If DPapLeft is down, move the slime left on the screen.
             if (gamePadOne.IsButtonDown(Buttons.DPadLeft))
             {
-                _prisoner.UpdatePosition(new Vector2(_prisoner._position.X - speed, _prisoner._position.Y));
+                _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X - speed, _prisoner.Position.Y));
             }
 
             // If DPadRight is down, move the slime right on the screen.
             if (gamePadOne.IsButtonDown(Buttons.DPadRight))
             {
-                _prisoner.UpdatePosition(new Vector2(_prisoner._position.X + speed, _prisoner._position.Y));
+                _prisoner.UpdatePosition(new Vector2(_prisoner.Position.X + speed, _prisoner.Position.Y));
             }
         }
     }
@@ -343,14 +343,14 @@ public class Game1 : Core
         _tilemap.Draw(SpriteBatch);
 
         // Draw the prisoner sprite at its position
-        _prisoner._sprite.Draw(SpriteBatch, _prisoner._position);
+        _prisoner.Draw(SpriteBatch);
 
         // Draw the bat sprite.
         _cop.Draw(SpriteBatch, _copPosition);
 
-        if (_prisoner._collider.DebugMode)
+        if (_prisoner.DebugMode)
         {
-            _prisoner._collider.Draw(SpriteBatch, Color.Red, _debugTexture, 2);
+            _prisoner.Collider.Draw(SpriteBatch, Color.Red, _debugTexture, 2);
             _cop.RectangleCollider.Draw(SpriteBatch, Color.Blue, _debugCopTexture, 2);
         }
 

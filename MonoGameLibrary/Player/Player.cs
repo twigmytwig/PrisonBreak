@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using MonoGameLibrary.Graphics;
 
 namespace MonoGameLibrary.Player;
@@ -6,10 +7,13 @@ namespace MonoGameLibrary.Player;
 public class Player
 {
     public bool DebugMode { get; set; }
-    private float _movementSpeed = 5f;
-    public Vector2 _position { get; set; }
-    public AnimatedSprite _sprite { get; set; }
-    public RectangleCollider.RectangleCollider _collider { get; set; }
+    private Vector2 _position;
+    private AnimatedSprite _sprite;
+    private RectangleCollider.RectangleCollider _collider;
+    
+    public Vector2 Position => _position;
+    public AnimatedSprite Sprite => _sprite;
+    public RectangleCollider.RectangleCollider Collider => _collider;
 
     public Player()
     {
@@ -42,6 +46,16 @@ public class Player
     {
         _position = newPosition;
         UpdateCollider();
+    }
+
+    public void Draw(SpriteBatch spriteBatch)
+    {
+        _sprite.Draw(spriteBatch, _position);
+    }
+
+    public Rectangle GetBounds()
+    {
+        return _collider.rectangleCollider;
     }
 
 }
