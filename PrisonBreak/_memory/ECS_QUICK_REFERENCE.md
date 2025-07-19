@@ -1,0 +1,285 @@
+# ECS Quick Reference Guide
+
+## 🚀 Quick Start
+
+### Creating Entities
+```csharp
+// Get the entity manager
+var entityManager = new ComponentEntityManager();
+
+// Create a player
+var player = entityManager.CreatePlayer(position, PlayerIndex.One);
+
+// Create a cop
+var cop = entityManager.CreateCop(position, AIBehavior.Patrol);
+
+// Create custom entity
+var entity = entityManager.CreateEntity();
+entity.AddComponent(new TransformComponent(position));
+entity.AddComponent(new SpriteComponent(sprite));
+```
+
+### Querying Entities
+```csharp
+// Get all moving entities
+var moving = entityManager.GetEntitiesWith<MovementComponent>();
+
+// Get all renderable entities
+var renderable = entityManager.GetEntitiesWith<TransformComponent, SpriteComponent>();
+
+// Get all players with input
+var players = entityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>();
+```
+
+### Modifying Components
+```csharp
+// Get component reference for direct modification
+ref var transform = ref entity.GetComponent<TransformComponent>();
+transform.Position += velocity;
+
+// Check if entity has component
+if (entity.HasComponent<CollisionComponent>())
+{
+    // Do collision logic
+}
+```
+
+## 📦 Component Reference
+
+### Core Components
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `TransformComponent` | Position/scale | `Vector2 Position`, `Vector2 Scale`, `float Rotation` |
+| `SpriteComponent` | Visual | `AnimatedSprite Sprite`, `bool Visible`, `Color Tint` |
+| `MovementComponent` | Physics | `Vector2 Velocity`, `float MaxSpeed`, `float Friction` |
+| `CollisionComponent` | Collision | `RectangleCollider Collider`, `bool IsSolid` |
+
+### Input Components
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `PlayerInputComponent` | Player control | `PlayerIndex PlayerIndex` |
+
+### AI Components
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `AIComponent` | AI behavior | `AIBehavior Behavior`, state data |
+
+### Tag Components
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `PlayerTag` | Mark as player | `int PlayerId` |
+| `CopTag` | Mark as cop | `int CopId` |
+| `DebugComponent` | Debug rendering | Debug flags |
+
+## ⚙️ System Reference
+
+### System Execution Order
+```
+1. ComponentInputSystem    - Process player input → events
+2. ComponentMovementSystem - Apply movement from events
+3. ComponentCollisionSystem - Detect/resolve collisions
+4. ComponentRenderSystem   - Draw everything
+```
+
+### Key System Methods
+```csharp
+// Input System
+public void Update(GameTime gameTime)
+{
+    // Reads input for entities with PlayerInputComponent
+    // Sends PlayerInputEvent for movement
+}
+
+// Movement System  
+public void Update(GameTime gameTime)
+{
+    // Listens to PlayerInputEvent
+    // Updates MovementComponent velocity
+    // Applies physics to all moving entities
+}
+
+// Collision System
+public void Update(GameTime gameTime)
+{
+    // Checks boundary collisions
+    // Checks entity-to-entity collisions
+    // Sends collision events
+}
+
+// Render System
+public void Draw(SpriteBatch spriteBatch)
+{
+    // Draws all entities with Transform + Sprite
+    // Handles depth sorting
+    // Draws debug info
+}
+```
+
+## 🎯 Common Patterns
+
+### Entity Factory Pattern
+```csharp
+public Entity CreateProjectile(Vector2 position, Vector2 velocity)
+{
+    var entity = CreateEntity();
+    entity.AddComponent(new TransformComponent(position, Vector2.One));
+    entity.AddComponent(new SpriteComponent(projectileSprite));
+    entity.AddComponent(new MovementComponent { Velocity = velocity });
+    // No collision = passes through walls
+    return entity;
+}
+```
+
+### Component Query Pattern
+```csharp
+public void UpdateHealthBars()
+{
+    // Only process entities that have both health and position
+    var entities = entityManager.GetEntitiesWith<HealthComponent, TransformComponent>();
+    
+    foreach (var entity in entities)
+    {
+        var health = entity.GetComponent<HealthComponent>();
+        var transform = entity.GetComponent<TransformComponent>();
+        
+        // Draw health bar above entity
+        DrawHealthBar(transform.Position, health.Percentage);
+    }
+}
+```
+
+### Event Communication Pattern
+```csharp
+// System A sends event
+_eventBus.Send(new PlayerCopCollisionEvent 
+{ 
+    PlayerId = player.Id, 
+    CopId = cop.Id 
+});
+
+// System B handles event
+_eventBus.Subscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
+
+private void OnPlayerCopCollision(PlayerCopCollisionEvent evt)
+{
+    // Handle the collision
+    var player = entityManager.GetEntity(evt.PlayerId);
+    // Game over logic
+}
+```
+
+### Dynamic Component Modification
+```csharp
+// Make entity temporarily invulnerable
+entity.AddComponent(new InvulnerabilityComponent { Duration = 3.0f });
+
+// Make entity start glowing
+ref var sprite = ref entity.GetComponent<SpriteComponent>();
+sprite.Tint = Color.Yellow;
+
+// Make pickup start moving when touched
+entity.AddComponent(new MovementComponent(100f));
+entity.AddComponent(new AIComponent(AIBehavior.Flee));
+```
+
+## 🔧 System Manager Usage
+
+### Setup
+```csharp
+var systemManager = new SystemManager();
+
+// Add systems in correct order
+systemManager.AddSystem(new ComponentInputSystem(entityManager, eventBus));
+systemManager.AddSystem(new ComponentMovementSystem(entityManager, eventBus));
+systemManager.AddSystem(new ComponentCollisionSystem(entityManager, eventBus));
+systemManager.AddSystem(new ComponentRenderSystem(entityManager));
+
+// Initialize all systems
+systemManager.Initialize();
+```
+
+### Game Loop
+```csharp
+protected override void Update(GameTime gameTime)
+{
+    systemManager.Update(gameTime); // Runs all systems in order
+}
+
+protected override void Draw(GameTime gameTime)
+{
+    _spriteBatch.Begin();
+    systemManager.Draw(_spriteBatch); // Handles all rendering
+    _spriteBatch.End();
+}
+```
+
+## 🐛 Debugging Tips
+
+### Entity Inspector
+```csharp
+// Print all components on entity
+foreach (var componentType in entity.GetComponentTypes())
+{
+    Console.WriteLine($"  - {componentType.Name}");
+}
+```
+
+### Component Counting
+```csharp
+var total = entityManager.GetEntityCount();
+var renderable = entityManager.GetEntitiesWith<SpriteComponent>().Count();
+var moving = entityManager.GetEntitiesWith<MovementComponent>().Count();
+
+Console.WriteLine($"Total: {total}, Renderable: {renderable}, Moving: {moving}");
+```
+
+### Performance Profiling
+```csharp
+var stopwatch = Stopwatch.StartNew();
+inputSystem.Update(gameTime);
+Console.WriteLine($"Input: {stopwatch.ElapsedMilliseconds}ms");
+
+stopwatch.Restart();
+movementSystem.Update(gameTime);
+Console.WriteLine($"Movement: {stopwatch.ElapsedMilliseconds}ms");
+```
+
+## ⚡ Performance Tips
+
+1. **Cache component queries** when possible
+2. **Use `ref` returns** to avoid copying structs
+3. **Batch similar operations** in systems
+4. **Remove unused components** to keep queries fast
+5. **Profile individual systems** to find bottlenecks
+
+## 🎮 Entity Recipes
+
+### Fast Moving Player
+```csharp
+var speedster = entityManager.CreateEntity();
+speedster.AddComponent(new TransformComponent(position));
+speedster.AddComponent(new SpriteComponent(sprite));
+speedster.AddComponent(new MovementComponent(200f)); // Fast!
+speedster.AddComponent(new PlayerInputComponent(PlayerIndex.One));
+speedster.AddComponent(new PlayerTag(speedster.Id));
+```
+
+### Immovable Wall
+```csharp
+var wall = entityManager.CreateEntity();
+wall.AddComponent(new TransformComponent(position));
+wall.AddComponent(new SpriteComponent(wallSprite));
+wall.AddComponent(new CollisionComponent(collider, isSolid: true));
+// No MovementComponent = cannot move
+```
+
+### Invisible Trigger Zone
+```csharp
+var trigger = entityManager.CreateEntity();
+trigger.AddComponent(new TransformComponent(position));
+// No SpriteComponent = invisible
+trigger.AddComponent(new CollisionComponent(collider, isSolid: false));
+trigger.AddComponent(new TriggerComponent("exit_zone"));
+```
+
+This ECS system provides infinite flexibility while maintaining high performance!

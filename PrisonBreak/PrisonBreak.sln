@@ -5,8 +5,6 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrisonBreak", "PrisonBreak.csproj", "{BCFB1371-D155-34FE-3D7F-DA66CE59C509}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MonoGameLibrary", "..\MonoGameLibrary\MonoGameLibrary.csproj", "{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,18 +27,6 @@ Global
 		{BCFB1371-D155-34FE-3D7F-DA66CE59C509}.Release|x64.Build.0 = Release|Any CPU
 		{BCFB1371-D155-34FE-3D7F-DA66CE59C509}.Release|x86.ActiveCfg = Release|Any CPU
 		{BCFB1371-D155-34FE-3D7F-DA66CE59C509}.Release|x86.Build.0 = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|x64.Build.0 = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Debug|x86.Build.0 = Debug|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|Any CPU.Build.0 = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|x64.ActiveCfg = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|x64.Build.0 = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|x86.ActiveCfg = Release|Any CPU
-		{496BC8D2-FB3F-4829-A2AC-0ED8A27C79BD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
