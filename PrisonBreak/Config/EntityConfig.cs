@@ -16,7 +16,7 @@ public static class EntityConfig
         public const string AnimationName = "cop-animation";
         public const bool DebugMode = true;
         public static readonly Vector2 Scale = new Vector2(GameConfig.SpriteScale, GameConfig.SpriteScale);
-        public const float MovementSpeed = 5.0f;
+        public const float MovementSpeed = 150.0f;
     }
 
     public static class Tilemap

@@ -9,7 +9,7 @@ public static class GameConfig
     public const int WindowHeight = 1080;
     public const bool StartFullscreen = false;
 
-    public const float BaseMovementSpeed = 5.0f;
+    public const float BaseMovementSpeed = 200.0f;
     public const float SpeedBoostMultiplier = 1.5f;
     
     public const float SpriteScale = 4.0f;

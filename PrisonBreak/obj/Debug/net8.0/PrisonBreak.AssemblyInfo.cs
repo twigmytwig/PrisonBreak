@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PrisonBreak")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+52806d0fd463dadfb79a6c877fe32a7b29a1f284")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a8a0603b06ef792b361f9e171f405a94d61bf8eb")]
 [assembly: System.Reflection.AssemblyProductAttribute("PrisonBreak")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PrisonBreak")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
