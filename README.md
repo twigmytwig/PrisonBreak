@@ -20,6 +20,7 @@ Players control prisoners trying to escape from a prison while avoiding AI-contr
 - **Multi-player support** - Each player controls their own prisoner
 - **AI-driven enemies** - Cops with various behavior patterns
 - **Component-based entities** - Mix and match behaviors
+- **Player type system** - Distinct roles with different abilities and visuals
 - **Scalable architecture** - Easy to add new entity types
 
 ## 🏗️ Architecture
@@ -58,6 +59,7 @@ Entity (ID + Components)
 | `CollisionComponent` | Collision detection | `RectangleCollider`, `bool IsSolid`, `string Layer` |
 | `PlayerInputComponent` | Input handling | `PlayerIndex`, input state |
 | `AIComponent` | AI behaviors | `AIBehavior`, state machine data |
+| `PlayerTypeComponent` | **NEW** Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
 
 ### System Execution Order
 
@@ -67,6 +69,55 @@ Systems execute in a specific order each frame:
 2. **ComponentMovementSystem** - Processes movement events, applies physics  
 3. **ComponentCollisionSystem** - Detects collisions, sends collision events
 4. **ComponentRenderSystem** - Draws everything
+
+## 👥 Player Type System
+
+The game features a flexible player type system that differentiates between prisoners and cops:
+
+### **Player Types**
+- **Prisoners** - Human-controlled players trying to escape
+  - Uses "prisoner-animation" sprite
+  - Standard movement speed (1.0x multiplier)
+  - Targeted by AI cops
+
+- **Cops** - Can be AI or human-controlled
+  - Uses "cop-animation" sprite  
+  - Faster movement speed (1.2x multiplier)
+  - AI cops automatically target prisoners
+
+### **PlayerTypeComponent**
+```csharp
+public struct PlayerTypeComponent
+{
+    public PlayerType Type;           // Prisoner or Cop
+    public float SpeedMultiplier;     // Speed modifier (cops are faster)
+    public string AnimationName;      // Sprite animation to use
+}
+```
+
+### **Creating Entities with Player Types**
+```csharp
+// Create a prisoner (human-controlled)
+var prisoner = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
+
+// Create a cop (can be human-controlled for multiplayer)
+var humanCop = entityManager.CreatePlayer(position, PlayerIndex.Two, PlayerType.Cop);
+
+// Create an AI cop
+var aiCop = entityManager.CreateCop(position, AIBehavior.Chase);
+```
+
+### **AI Behavior**
+- **Intelligent Targeting**: Cop AIs automatically find and chase the nearest prisoner
+- **Type-Aware**: Cops ignore other cops and only pursue prisoners
+- **Speed Advantage**: Cops move 20% faster than prisoners for balanced gameplay
+
+### **Future Expansion**
+The system is designed for easy expansion:
+- Additional player types (guards, special prisoners, etc.)
+- Custom animations per type
+- Type-specific abilities and permissions
+- Inventory restrictions based on player type
 
 ## 🗂️ Project Structure
 
@@ -141,13 +192,16 @@ pickup.AddComponent(new AIComponent(AIBehavior.Wander));
 
 ### Player-Controlled Cop (Multiplayer)
 ```csharp
-var playerCop = entityManager.CreateEntity();
-playerCop.AddComponent(new TransformComponent(position));
-playerCop.AddComponent(new SpriteComponent(copSprite));
-playerCop.AddComponent(new MovementComponent(100f));
-playerCop.AddComponent(new CollisionComponent(collider));
-playerCop.AddComponent(new PlayerInputComponent(PlayerIndex.Two)); // Player 2
-playerCop.AddComponent(new CopTag(playerCop.Id));
+// Easy way using the factory method
+var playerCop = entityManager.CreatePlayer(position, PlayerIndex.Two, PlayerType.Cop);
+
+// Manual way for custom behavior
+var customCop = entityManager.CreateEntity();
+customCop.AddComponent(new TransformComponent(position));
+customCop.AddComponent(new PlayerTypeComponent(PlayerType.Cop));
+customCop.AddComponent(new PlayerInputComponent(PlayerIndex.Two));
+customCop.AddComponent(new MovementComponent(100f));
+// PlayerTypeComponent automatically provides sprite animation and speed multiplier
 ```
 
 ### Invisible Ghost Enemy

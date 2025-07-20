@@ -11,14 +11,14 @@ public struct TransformComponent
     public Vector2 Position;
     public float Rotation;
     public Vector2 Scale;
-    
+
     public TransformComponent(Vector2 position)
     {
         Position = position;
         Rotation = 0f;
         Scale = Vector2.One;
     }
-    
+
     public TransformComponent(Vector2 position, Vector2 scale)
     {
         Position = position;
@@ -33,7 +33,7 @@ public struct SpriteComponent
     public AnimatedSprite Sprite;
     public bool Visible;
     public Color Tint;
-    
+
     public SpriteComponent(AnimatedSprite sprite)
     {
         Sprite = sprite;
@@ -49,7 +49,7 @@ public struct MovementComponent
     public float MaxSpeed;
     public float Acceleration;
     public float Friction;
-    
+
     public MovementComponent(float maxSpeed)
     {
         Velocity = Vector2.Zero;
@@ -65,7 +65,7 @@ public struct CollisionComponent
     public RectangleCollider Collider;
     public bool IsSolid;
     public string Layer;
-    
+
     public CollisionComponent(RectangleCollider collider)
     {
         Collider = collider;
@@ -80,7 +80,7 @@ public struct PlayerInputComponent
     public PlayerIndex PlayerIndex;
     public float SpeedBoostMultiplier;
     public bool IsActive;
-    
+
     public PlayerInputComponent(PlayerIndex playerIndex)
     {
         PlayerIndex = playerIndex;
@@ -97,7 +97,7 @@ public struct AIComponent
     public float StateTimer;
     public Vector2 TargetPosition;
     public int EntityTargetId;
-    
+
     public AIComponent(AIBehavior behavior)
     {
         Behavior = behavior;
@@ -125,7 +125,7 @@ public struct AnimationComponent
     public bool IsPlaying;
     public bool Loop;
     public double ElapsedTime;
-    
+
     public AnimationComponent(AnimatedSprite animatedSprite)
     {
         AnimatedSprite = animatedSprite;
@@ -141,7 +141,7 @@ public struct DebugComponent
     public bool ShowCollisionBounds;
     public Color CollisionColor;
     public int CollisionThickness;
-    
+
     public DebugComponent(bool showBounds = true)
     {
         ShowCollisionBounds = showBounds;
@@ -154,7 +154,7 @@ public struct DebugComponent
 public struct PlayerTag
 {
     public int PlayerId;
-    
+
     public PlayerTag(int playerId)
     {
         PlayerId = playerId;
@@ -164,7 +164,7 @@ public struct PlayerTag
 public struct CopTag
 {
     public int CopId;
-    
+
     public CopTag(int copId)
     {
         CopId = copId;
@@ -174,7 +174,7 @@ public struct CopTag
 public struct WallTag
 {
     public string WallType;
-    
+
     public WallTag(string wallType = "wall")
     {
         WallType = wallType;
@@ -188,7 +188,7 @@ public struct BoundsConstraintComponent
     public bool ConstrainToHorizontal;
     public bool ConstrainToVertical;
     public bool ReflectVelocityOnCollision;
-    
+
     public BoundsConstraintComponent(Rectangle bounds)
     {
         Bounds = bounds;
@@ -196,4 +196,34 @@ public struct BoundsConstraintComponent
         ConstrainToVertical = true;
         ReflectVelocityOnCollision = false;
     }
+}
+
+public struct PlayerTypeComponent
+{
+    public PlayerType Type;
+    public float SpeedMultiplier;    // Cops might be faster
+    public string AnimationName;     // Animation to use for this player type
+    
+    public PlayerTypeComponent(PlayerType type, string animationName = null)
+    {
+        Type = type;
+        SpeedMultiplier = type == PlayerType.Cop ? 1.2f : 1.0f;
+        AnimationName = animationName ?? GetDefaultAnimation(type);
+    }
+    
+    private static string GetDefaultAnimation(PlayerType type)
+    {
+        return type switch
+        {
+            PlayerType.Cop => "cop-animation",
+            PlayerType.Prisoner => "prisoner-animation",
+            _ => "prisoner-animation"
+        };
+    }
+}
+
+public enum PlayerType
+{
+    Prisoner,
+    Cop
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PrisonBreak.Core.Physics;
@@ -28,20 +29,20 @@ public class ComponentMovementSystem : IGameSystem
         // Subscribe to input events
         _eventBus.Subscribe<PlayerInputEvent>(OnPlayerInput);
     }
-    
+
     public void SetCollisionMap(Core.Graphics.Tilemap tilemap, Vector2 offset)
     {
         if (tilemap == null) return;
-        
+
         _tileSize = tilemap.TileWidth;
         _mapOffset = offset;
-        
+
         // Create collision map from tilemap
         _collisionMap = new bool[tilemap.Columns, tilemap.Rows];
-        
+
         // Solid tile IDs (02 = prison bars, 03 = walls)
-        int[] solidTileIds = { 2, 3 };
-        
+        int[] solidTileIds = { 2, 3, 4 };
+
         for (int row = 0; row < tilemap.Rows; row++)
         {
             for (int col = 0; col < tilemap.Columns; col++)
@@ -50,7 +51,7 @@ public class ComponentMovementSystem : IGameSystem
                 _collisionMap[col, row] = Array.Exists(solidTileIds, id => id == tileId);
             }
         }
-        
+
         Console.WriteLine($"Created collision map: {tilemap.Columns}x{tilemap.Rows}, TileSize: {_tileSize}");
     }
 
@@ -134,6 +135,13 @@ public class ComponentMovementSystem : IGameSystem
             speed *= inputComponent.SpeedBoostMultiplier;
         }
 
+        // Apply player type speed multiplier
+        if (entity.HasComponent<PlayerTypeComponent>())
+        {
+            var playerType = entity.GetComponent<PlayerTypeComponent>();
+            speed *= playerType.SpeedMultiplier;
+        }
+
         // Set velocity directly for responsive player movement
         movement.Velocity = inputEvent.MovementDirection * speed;
     }
@@ -153,28 +161,37 @@ public class ComponentMovementSystem : IGameSystem
             switch (ai.Behavior)
             {
                 case AIBehavior.Patrol:
-                    HandlePatrolBehavior(ref ai, ref movement, transform.Position);
+                    HandlePatrolBehavior(entity, ref ai, ref movement, transform.Position);
                     break;
 
                 case AIBehavior.Wander:
-                    HandleWanderBehavior(ref ai, ref movement);
+                    HandleWanderBehavior(entity, ref ai, ref movement);
                     break;
 
                 case AIBehavior.Chase:
-                    HandleChaseBehavior(ref ai, ref movement, transform.Position);
+                    HandleChaseBehavior(entity, ref ai, ref movement, transform.Position);
                     break;
 
                 case AIBehavior.Guard:
-                    HandleGuardBehavior(ref ai, ref movement, transform.Position);
+                    HandleGuardBehavior(entity, ref ai, ref movement, transform.Position);
                     break;
             }
         }
     }
 
-    private void HandlePatrolBehavior(ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
+    private void HandlePatrolBehavior(Entity entity, ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
     {
         // Simple patrol - move in a direction until hitting something or time limit
-        movement.Velocity = ai.PatrolDirection * movement.MaxSpeed;
+        float speed = movement.MaxSpeed;
+        
+        // Apply player type speed multiplier
+        if (entity.HasComponent<PlayerTypeComponent>())
+        {
+            var playerType = entity.GetComponent<PlayerTypeComponent>();
+            speed *= playerType.SpeedMultiplier;
+        }
+        
+        movement.Velocity = ai.PatrolDirection * speed;
 
         // Change direction every 3-5 seconds
         if (ai.StateTimer > 3.0f + _random.NextSingle() * 2.0f)
@@ -184,7 +201,7 @@ public class ComponentMovementSystem : IGameSystem
         }
     }
 
-    private void HandleWanderBehavior(ref AIComponent ai, ref MovementComponent movement)
+    private void HandleWanderBehavior(Entity entity, ref AIComponent ai, ref MovementComponent movement)
     {
         // Random wandering with occasional direction changes
         if (ai.StateTimer > 1.0f + _random.NextSingle() * 2.0f)
@@ -194,13 +211,42 @@ public class ComponentMovementSystem : IGameSystem
             ai.StateTimer = 0f;
         }
 
-        movement.Velocity = ai.PatrolDirection * (movement.MaxSpeed * 0.5f); // Slower wandering
+        float speed = movement.MaxSpeed * 0.5f; // Slower wandering
+        
+        // Apply player type speed multiplier
+        if (entity.HasComponent<PlayerTypeComponent>())
+        {
+            var playerType = entity.GetComponent<PlayerTypeComponent>();
+            speed *= playerType.SpeedMultiplier;
+        }
+        
+        movement.Velocity = ai.PatrolDirection * speed;
     }
 
-    private void HandleChaseBehavior(ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
+    private void HandleChaseBehavior(Entity entity, ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
     {
-        // Find target entity (player)
-        var targetEntity = _entityManager.GetEntity(ai.EntityTargetId);
+        // Find target entity (prisoner) - either use existing target or find nearest prisoner
+        Entity targetEntity = null;
+        
+        if (ai.EntityTargetId != -1)
+        {
+            targetEntity = _entityManager.GetEntity(ai.EntityTargetId);
+            // Verify target is still a valid prisoner
+            if (targetEntity?.HasComponent<PlayerTypeComponent>() != true ||
+                targetEntity.GetComponent<PlayerTypeComponent>().Type != PlayerType.Prisoner)
+            {
+                targetEntity = null;
+                ai.EntityTargetId = -1;
+            }
+        }
+        
+        // If no valid target, find nearest prisoner
+        if (targetEntity == null)
+        {
+            targetEntity = FindNearestPrisoner(currentPosition);
+            ai.EntityTargetId = targetEntity?.Id ?? -1;
+        }
+        
         if (targetEntity?.HasComponent<TransformComponent>() == true)
         {
             var targetTransform = targetEntity.GetComponent<TransformComponent>();
@@ -209,7 +255,16 @@ public class ComponentMovementSystem : IGameSystem
             if (direction.Length() > 1.0f)
             {
                 direction.Normalize();
-                movement.Velocity = direction * movement.MaxSpeed * 1.2f; // Faster when chasing
+                float speed = movement.MaxSpeed * 1.2f; // Faster when chasing
+                
+                // Apply player type speed multiplier
+                if (entity.HasComponent<PlayerTypeComponent>())
+                {
+                    var playerType = entity.GetComponent<PlayerTypeComponent>();
+                    speed *= playerType.SpeedMultiplier;
+                }
+                
+                movement.Velocity = direction * speed;
             }
         }
         else
@@ -220,7 +275,7 @@ public class ComponentMovementSystem : IGameSystem
         }
     }
 
-    private void HandleGuardBehavior(ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
+    private void HandleGuardBehavior(Entity entity, ref AIComponent ai, ref MovementComponent movement, Vector2 currentPosition)
     {
         // Return to guard position
         Vector2 direction = ai.TargetPosition - currentPosition;
@@ -229,7 +284,16 @@ public class ComponentMovementSystem : IGameSystem
         if (distance > 10f) // Return to guard position if too far
         {
             direction.Normalize();
-            movement.Velocity = direction * movement.MaxSpeed * 0.7f;
+            float speed = movement.MaxSpeed * 0.7f;
+            
+            // Apply player type speed multiplier
+            if (entity.HasComponent<PlayerTypeComponent>())
+            {
+                var playerType = entity.GetComponent<PlayerTypeComponent>();
+                speed *= playerType.SpeedMultiplier;
+            }
+            
+            movement.Velocity = direction * speed;
         }
         else
         {
@@ -243,17 +307,41 @@ public class ComponentMovementSystem : IGameSystem
         return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
     }
     
+    private Entity FindNearestPrisoner(Vector2 position)
+    {
+        Entity nearestPrisoner = null;
+        float nearestDistance = float.MaxValue;
+        
+        // Find all prisoners (entities with PlayerTypeComponent where Type is Prisoner)
+        var prisoners = _entityManager.GetEntitiesWith<PlayerTypeComponent, TransformComponent>()
+            .Where(e => e.GetComponent<PlayerTypeComponent>().Type == PlayerType.Prisoner);
+        
+        foreach (var prisoner in prisoners)
+        {
+            var prisonerTransform = prisoner.GetComponent<TransformComponent>();
+            float distance = Vector2.Distance(position, prisonerTransform.Position);
+            
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestPrisoner = prisoner;
+            }
+        }
+        
+        return nearestPrisoner;
+    }
+
     private bool IsTileSolid(int tileX, int tileY)
     {
         if (_collisionMap == null) return false;
-        
+
         // Check bounds
         if (tileX < 0 || tileY < 0 || tileX >= _collisionMap.GetLength(0) || tileY >= _collisionMap.GetLength(1))
             return true; // Treat out-of-bounds as solid
-            
+
         return _collisionMap[tileX, tileY];
     }
-    
+
     private Vector2 WorldToTile(Vector2 worldPos)
     {
         return new Vector2(
@@ -261,7 +349,7 @@ public class ComponentMovementSystem : IGameSystem
             (worldPos.Y - _mapOffset.Y) / _tileSize
         );
     }
-    
+
     private Vector2 TileToWorld(Vector2 tilePos)
     {
         return new Vector2(
@@ -282,13 +370,13 @@ public class ComponentMovementSystem : IGameSystem
         // Get player collision bounds and calculate offset from position
         var collision = movingEntity.GetComponent<CollisionComponent>();
         var worldBounds = collision.Collider.rectangleCollider;
-        
+
         // Calculate the offset between player position and collision bounds
         Vector2 colliderOffset = new Vector2(
             worldBounds.X - currentPosition.X,
             worldBounds.Y - currentPosition.Y
         );
-        
+
         // Create relative bounds (size + offset)
         Rectangle relativeBounds = new Rectangle(
             (int)colliderOffset.X,
@@ -296,18 +384,18 @@ public class ComponentMovementSystem : IGameSystem
             worldBounds.Width,
             worldBounds.Height
         );
-        
+
         // Use tile-based collision detection
         return GetSafeMovementTileBased(currentPosition, intendedPosition, relativeBounds);
     }
-    
+
     private Vector2 GetSafeMovementTileBased(Vector2 from, Vector2 to, Rectangle playerBounds)
     {
         Vector2 movement = to - from;
         float distance = movement.Length();
-        
+
         if (distance < 0.1f) return to; // Too small to matter
-        
+
         // Check if current position is already colliding - if so, try to move away
         if (IsPositionCollidingWithTiles(from, playerBounds))
         {
@@ -318,33 +406,33 @@ public class ComponentMovementSystem : IGameSystem
                 return escapedPosition;
             }
         }
-        
+
         Vector2 direction = movement / distance;
         Vector2 safePosition = from;
-        
+
         // Test movement in smaller steps for better precision
         float stepSize = Math.Min(4f, distance / 8f); // Smaller steps: 4px or 1/8 of movement
         float currentDistance = 0f;
-        
+
         while (currentDistance < distance)
         {
             float nextDistance = Math.Min(currentDistance + stepSize, distance);
             Vector2 testPosition = from + direction * nextDistance;
-            
+
             if (IsPositionCollidingWithTiles(testPosition, playerBounds))
             {
                 // Collision detected - try sliding along walls
                 Vector2 slidePosition = TrySlideMovement(safePosition, to, playerBounds);
                 return slidePosition;
             }
-            
+
             safePosition = testPosition;
             currentDistance = nextDistance;
         }
-        
+
         return to; // No collision detected
     }
-    
+
     private Vector2 FindNearestSafePosition(Vector2 stuckPosition, Rectangle playerBounds)
     {
         // Try small offsets in all directions to escape from being stuck
@@ -352,7 +440,7 @@ public class ComponentMovementSystem : IGameSystem
             new Vector2(1, 0), new Vector2(-1, 0), new Vector2(0, 1), new Vector2(0, -1),
             new Vector2(1, 1), new Vector2(-1, -1), new Vector2(1, -1), new Vector2(-1, 1)
         };
-        
+
         for (int distance = 1; distance <= 8; distance++)
         {
             foreach (var offset in offsets)
@@ -364,10 +452,10 @@ public class ComponentMovementSystem : IGameSystem
                 }
             }
         }
-        
+
         return stuckPosition; // Couldn't find safe position
     }
-    
+
     private bool IsPositionCollidingWithTiles(Vector2 position, Rectangle playerBounds)
     {
         // Calculate the rectangle the player would occupy at the test position
@@ -378,11 +466,11 @@ public class ComponentMovementSystem : IGameSystem
             playerBounds.Width,
             playerBounds.Height
         );
-        
+
         // Convert player bounds to tile coordinates
         Vector2 topLeft = WorldToTile(new Vector2(testBounds.Left, testBounds.Top));
         Vector2 bottomRight = WorldToTile(new Vector2(testBounds.Right - 1, testBounds.Bottom - 1));
-        
+
         // Check all tiles the player would overlap
         for (int tileX = (int)Math.Floor(topLeft.X); tileX <= (int)Math.Floor(bottomRight.X); tileX++)
         {
@@ -394,28 +482,28 @@ public class ComponentMovementSystem : IGameSystem
                 }
             }
         }
-        
+
         return false;
     }
-    
+
     private Vector2 TrySlideMovement(Vector2 safePos, Vector2 intendedPos, Rectangle playerBounds)
     {
         Vector2 remainingMovement = intendedPos - safePos;
-        
+
         // Try horizontal movement only
         Vector2 horizontalPos = new Vector2(intendedPos.X, safePos.Y);
         if (!IsPositionCollidingWithTiles(horizontalPos, playerBounds))
         {
             return horizontalPos;
         }
-        
+
         // Try vertical movement only
         Vector2 verticalPos = new Vector2(safePos.X, intendedPos.Y);
         if (!IsPositionCollidingWithTiles(verticalPos, playerBounds))
         {
             return verticalPos;
         }
-        
+
         // Can't slide - stay at safe position
         return safePos;
     }

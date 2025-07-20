@@ -161,7 +161,7 @@ public class ComponentEntityManager
     }
     
     // Factory methods for creating specific entity types
-    public Entity CreatePlayer(Vector2 position, PlayerIndex playerIndex = PlayerIndex.One)
+    public Entity CreatePlayer(Vector2 position, PlayerIndex playerIndex = PlayerIndex.One, PlayerType playerType = PlayerType.Prisoner)
     {
         if (_atlas == null)
         {
@@ -174,8 +174,14 @@ public class ComponentEntityManager
         var transform = new TransformComponent(position, EntityConfig.Player.Scale);
         entity.AddComponent(transform);
         
-        // Sprite
-        var sprite = _atlas.CreateAnimatedSprite(EntityConfig.Player.AnimationName);
+        // Player-specific components (add PlayerTypeComponent first to get animation name)
+        var playerTypeComponent = new PlayerTypeComponent(playerType);
+        entity.AddComponent(playerTypeComponent);
+        entity.AddComponent(new PlayerInputComponent(playerIndex));
+        entity.AddComponent(new PlayerTag(entity.Id));
+        
+        // Sprite - use animation from player type
+        var sprite = _atlas.CreateAnimatedSprite(playerTypeComponent.AnimationName);
         entity.AddComponent(new SpriteComponent(sprite));
         
         // Animation
@@ -206,10 +212,6 @@ public class ComponentEntityManager
             (int)colliderHeight
         );
         entity.AddComponent(new CollisionComponent(collider));
-        
-        // Player-specific components
-        entity.AddComponent(new PlayerInputComponent(playerIndex));
-        entity.AddComponent(new PlayerTag(entity.Id));
         
         // Debug
         if (EntityConfig.Player.DebugMode)
@@ -272,6 +274,7 @@ public class ComponentEntityManager
         
         // Cop-specific components
         entity.AddComponent(new CopTag(entity.Id));
+        entity.AddComponent(new PlayerTypeComponent(PlayerType.Cop));
         
         // Debug
         if (EntityConfig.Cop.DebugMode)
