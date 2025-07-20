@@ -1,10 +1,15 @@
 # Prison Break Game
 
-A 2D prison escape game built with MonoGame, featuring a modern **Entity Component System (ECS)** architecture for high performance and multiplayer readiness.
+A 2D prison escape game built with MonoGame, featuring a modern **Scene-Based + Entity Component System (ECS)** architecture for high performance and multiplayer readiness.
 
-## 🚀 Major Update: Component-Based Architecture
+## 🚀 Latest Major Update: Scene Management System (v2.0.0)
 
-This project has been **completely refactored** from an inheritance-based entity system to a pure **Entity Component System (ECS)**. This architectural change provides:
+This project has evolved through **two major architectural improvements**:
+
+1. **ECS Migration**: Refactored from inheritance-based entities to pure **Entity Component System (ECS)**
+2. **Scene Architecture**: Added professional scene management with start menu and player type selection
+
+The combined architecture provides:
 
 - ✅ **Extreme Flexibility** - Mix any behaviors by combining components
 - ✅ **High Performance** - Only process entities that need processing  
@@ -12,28 +17,52 @@ This project has been **completely refactored** from an inheritance-based entity
 - ✅ **Multiplayer Ready** - Pure data components sync easily
 - ✅ **Testable** - Systems can be tested independently
 - ✅ **Maintainable** - Clear separation of data and logic
+- ✅ **Professional UX** - Proper start menu with player type selection
+- ✅ **Scene Management** - Clean separation between game states
 
 ## 🎮 Game Overview
 
 Players control prisoners trying to escape from a prison while avoiding AI-controlled cops. The game features:
 
-- **Multi-player support** - Each player controls their own prisoner
-- **AI-driven enemies** - Cops with various behavior patterns
+- **Professional Start Menu** - Player type selection before gameplay
+- **Multi-player support** - Each player controls their own prisoner or cop
+- **AI-driven enemies** - Cops with various behavior patterns  
 - **Component-based entities** - Mix and match behaviors
-- **Player type system** - Distinct roles with different abilities and visuals
-- **Scalable architecture** - Easy to add new entity types
+- **Player type system** - Choose between Prisoner and Cop with distinct abilities
+- **Scene-based architecture** - Clean separation between menu and gameplay
+- **Scalable design** - Easy to add new entity types and game modes
 
 ## 🏗️ Architecture
 
+### Scene Management + Entity Component System
+
+The game uses a **hybrid Scene + ECS architecture** that combines the best of both patterns:
+
+- **Scenes** provide high-level game state organization (Menu, Gameplay, Pause)
+- **Within each scene**: Pure ECS architecture handles entities, components, and systems
+- **Scene transitions** are event-driven and handle content loading automatically
+
 ### Entity Component System (ECS)
 
-The game uses a pure ECS architecture where:
+Within each scene, the game uses pure ECS architecture where:
 
 - **Entities** are just containers with an ID
 - **Components** are pure data structures (no logic)
 - **Systems** contain all the game logic
 
 ```
+SceneManager
+├── StartMenuScene
+│   ├── Menu Entities (MenuItemComponent, TextComponent)
+│   ├── MenuInputSystem (navigation)
+│   └── MenuRenderSystem (UI rendering)
+└── GameplayScene  
+    ├── Game Entities (Player, Cops, etc.)
+    ├── ComponentInputSystem
+    ├── ComponentMovementSystem
+    ├── ComponentCollisionSystem
+    └── ComponentRenderSystem
+
 Entity (ID + Components)
 ├── Components (Pure Data):
 │   ├── TransformComponent (position, rotation, scale)
@@ -41,12 +70,15 @@ Entity (ID + Components)
 │   ├── MovementComponent (velocity, physics)
 │   ├── CollisionComponent (bounds, collision data)
 │   ├── PlayerInputComponent (input handling)
+│   ├── PlayerTypeComponent (Prisoner/Cop classification)
+│   ├── MenuItemComponent (UI elements)
+│   ├── TextComponent (text rendering)
 │   └── AIComponent (autonomous behavior)
 └── Systems (Pure Logic):
-    ├── ComponentInputSystem
+    ├── ComponentInputSystem / MenuInputSystem
     ├── ComponentMovementSystem
     ├── ComponentCollisionSystem
-    └── ComponentRenderSystem
+    └── ComponentRenderSystem / MenuRenderSystem
 ```
 
 ### Core Components
@@ -59,12 +91,17 @@ Entity (ID + Components)
 | `CollisionComponent` | Collision detection | `RectangleCollider`, `bool IsSolid`, `string Layer` |
 | `PlayerInputComponent` | Input handling | `PlayerIndex`, input state |
 | `AIComponent` | AI behaviors | `AIBehavior`, state machine data |
-| `PlayerTypeComponent` | **NEW** Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
+| `PlayerTypeComponent` | Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
+| `MenuItemComponent` | **NEW** UI elements | `bool IsSelected`, `Color BackgroundColor`, `int Width`, `int Height` |
+| `TextComponent` | **NEW** Text rendering | `string Text`, `SpriteFont Font`, `Color Color`, `TextAlignment` |
 
 ### System Execution Order
 
-Systems execute in a specific order each frame:
+#### StartMenuScene
+1. **MenuInputSystem** - Menu navigation (arrows, enter, escape)
+2. **MenuRenderSystem** - UI rendering with fonts
 
+#### GameplayScene  
 1. **ComponentInputSystem** - Captures input, sends events
 2. **ComponentMovementSystem** - Processes movement events, applies physics  
 3. **ComponentCollisionSystem** - Detects collisions, sends collision events
@@ -133,7 +170,7 @@ PrisonBreak/
 │   └── Physics/            # Collision detection
 ├── ECS/
 │   ├── Entity.cs           # Entity container
-│   ├── Components.cs       # All component definitions
+│   ├── Components.cs       # All component definitions (includes new UI components)
 │   ├── ComponentEntityManager.cs  # Entity management and queries
 │   ├── EventSystem.cs      # Event bus for system communication
 │   └── Systems/
@@ -141,13 +178,22 @@ PrisonBreak/
 │       ├── ComponentInputSystem.cs
 │       ├── ComponentMovementSystem.cs
 │       ├── ComponentCollisionSystem.cs
-│       └── ComponentRenderSystem.cs
+│       ├── ComponentRenderSystem.cs
+│       ├── MenuInputSystem.cs       # NEW: Menu navigation
+│       └── MenuRenderSystem.cs      # NEW: UI rendering
+├── Scenes/                          # NEW: Scene management
+│   ├── Scene.cs            # Abstract base scene
+│   ├── SceneManager.cs     # Scene lifecycle and transitions
+│   ├── StartMenuScene.cs   # Player type selection menu
+│   └── GameplayScene.cs    # Wrapped game logic
 ├── Game/
-│   ├── Game1.cs           # Main game class (now ~100 lines!)
+│   ├── Game1.cs           # Main game class (now ~75 lines!)
 │   └── Program.cs         # Entry point
 ├── Managers/
 │   └── SystemManager.cs   # Coordinates system lifecycle
 ├── Content/               # Game assets
+│   ├── MinecraftFont.spritefont    # NEW: Font descriptor
+│   ├── fonts/minecraft/Minecraft.ttf # NEW: Font file
 │   └── images/
 └── _memory/              # Documentation and planning
 ```
@@ -217,8 +263,16 @@ ghost.AddComponent(new CopTag(ghost.Id));
 
 ## 🎮 Controls
 
+### Start Menu
+- **Up/Down Arrows** - Navigate menu options
+- **Left/Right Arrows** - Change player type when "Start Game" is selected
+- **Enter** - Confirm selection / Start game
+- **ESC** - Exit game
+
+### Gameplay
 - **WASD** - Player 1 movement
 - **Arrow Keys** - Player 2 movement (if available)
+- **ESC** - Return to start menu
 - **Gamepad** - Full gamepad support for multiple players
 
 ## 🔄 Migration from Inheritance Architecture
@@ -234,8 +288,10 @@ This project previously used an inheritance-based entity system. The migration p
 
 ## 📚 Documentation
 
-- [`GameLoopArchitectureComponentBased.md`](PrisonBreak/_memory/GameLoopAndSystems/GameLoopArchitectureComponentBased.md) - Detailed ECS architecture explanation
-- [`futurePlans.md`](PrisonBreak/_memory/futurePlans.md) - Original refactoring plan and rationale
+- [`CHANGELOG.md`](PrisonBreak/CHANGELOG.md) - **NEW** Complete v2.0.0 release notes
+- [`GameLoopArchitectureComponentBased.md`](PrisonBreak/_memory/GameLoopAndSystems/GameLoopArchitectureComponentBased.md) - **UPDATED** ECS + Scene architecture explanation
+- [`futurePlans.md`](PrisonBreak/_memory/futurePlans.md) - **UPDATED** Architecture documentation and implementation notes
+- [`ECS_QUICK_REFERENCE.md`](PrisonBreak/_memory/ECS_QUICK_REFERENCE.md) - **UPDATED** Component and system reference with new UI components
 
 ## 🧱 Advanced Tile-Based Collision System
 

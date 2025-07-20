@@ -7,8 +7,10 @@
 // Get the entity manager
 var entityManager = new ComponentEntityManager();
 
-// Create a player
-var player = entityManager.CreatePlayer(position, PlayerIndex.One);
+// Create a player with specific type (NEW)
+var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
+// or
+var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Cop);
 
 // Create a cop
 var cop = entityManager.CreateCop(position, AIBehavior.Patrol);
@@ -29,6 +31,13 @@ var renderable = entityManager.GetEntitiesWith<TransformComponent, SpriteCompone
 
 // Get all players with input
 var players = entityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>();
+
+// Get players by type (NEW)
+var prisoners = entityManager.GetEntitiesWith<PlayerTypeComponent>()
+    .Where(e => e.GetComponent<PlayerTypeComponent>().Type == PlayerType.Prisoner);
+
+// Get menu items (NEW)
+var menuItems = entityManager.GetEntitiesWith<MenuItemComponent, TransformComponent>();
 ```
 
 ### Modifying Components
@@ -71,14 +80,33 @@ if (entity.HasComponent<CollisionComponent>())
 | `CopTag` | Mark as cop | `int CopId` |
 | `DebugComponent` | Debug rendering | Debug flags |
 
+### Game Features (NEW)
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `PlayerTypeComponent` | Player classification | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
+
+### Menu/UI Components (NEW)
+| Component | Purpose | Key Fields |
+|-----------|---------|------------|
+| `MenuItemComponent` | Menu buttons/UI | `bool IsSelected`, `int Width`, `int Height`, `Color BackgroundColor` |
+| `TextComponent` | Text rendering | `string Text`, `Color Color`, `SpriteFont Font`, `TextAlignment Alignment` |
+
 ## ⚙️ System Reference
 
 ### System Execution Order
+
+#### Gameplay Scene
 ```
 1. ComponentInputSystem    - Process player input → events
 2. ComponentMovementSystem - Apply movement from events + tile collision detection
 3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
 4. ComponentRenderSystem   - Draw everything
+```
+
+#### Start Menu Scene (NEW)
+```
+1. MenuInputSystem - Process menu navigation input → events
+2. MenuRenderSystem - Draw menu items and text
 ```
 
 ### Collision System Architecture

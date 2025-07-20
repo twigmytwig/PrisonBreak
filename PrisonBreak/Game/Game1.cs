@@ -9,26 +9,15 @@ using PrisonBreak.Managers;
 using PrisonBreak.Systems;
 using PrisonBreak.ECS;
 using PrisonBreak.ECS.Systems;
+using PrisonBreak.Scenes;
 
 namespace PrisonBreak.Game;
 
 public class Game1 : PrisonBreak.Core.Core
 {
-    // Component-based systems
-    private SystemManager _systemManager;
-    private ComponentEntityManager _entityManager;
+    // Scene management
+    private SceneManager _sceneManager;
     private EventBus _eventBus;
-
-    private ComponentInputSystem _inputSystem;
-    private AnimationSystem _animationSystem;
-    private ComponentMovementSystem _movementSystem;
-    private ComponentCollisionSystem _collisionSystem;
-    private ComponentRenderSystem _renderSystem;
-
-    private Tilemap _tilemap;
-    private Rectangle _roomBounds;
-    private bool _gameInitialized;
-    private bool _tilemapSet;
 
     public Game1() : base(GameConfig.WindowTitle, GameConfig.WindowWidth, GameConfig.WindowHeight, GameConfig.StartFullscreen)
     {
@@ -36,90 +25,39 @@ public class Game1 : PrisonBreak.Core.Core
 
     protected override void Initialize()
     {
-        base.Initialize();
-
         // Create event bus first
         _eventBus = new EventBus();
 
-        // Create managers
-        _systemManager = new SystemManager();
-        _entityManager = new ComponentEntityManager(_eventBus);
+        // Create scene manager
+        _sceneManager = new SceneManager(_eventBus);
 
-        // Create component-based systems
-        _inputSystem = new ComponentInputSystem();
-        _animationSystem = new AnimationSystem(_entityManager);
-        _movementSystem = new ComponentMovementSystem();
-        _collisionSystem = new ComponentCollisionSystem();
-        _renderSystem = new ComponentRenderSystem();
+        // Register scenes
+        _sceneManager.RegisterScene(SceneType.StartMenu, new StartMenuScene(_eventBus));
+        _sceneManager.RegisterScene(SceneType.Gameplay, new GameplayScene(_eventBus));
 
-        // Set up system dependencies
-        _inputSystem.SetEntityManager(_entityManager);
-        _inputSystem.SetEventBus(_eventBus);
+        // Initialize with start menu
+        _sceneManager.Initialize(SceneType.StartMenu);
 
-        _movementSystem.SetEntityManager(_entityManager);
-        _movementSystem.SetEventBus(_eventBus);
-
-        _collisionSystem.SetEntityManager(_entityManager);
-        _collisionSystem.SetEventBus(_eventBus);
-
-        _renderSystem.SetEntityManager(_entityManager);
-        _renderSystem.SetEventBus(_eventBus);
-
-        // Add systems to manager in execution order
-        _systemManager.AddSystem(_inputSystem);
-        _systemManager.AddSystem(_animationSystem);  // Add after input, before movement
-        _systemManager.AddSystem(_movementSystem);
-        _systemManager.AddSystem(_collisionSystem);
-        _systemManager.AddSystem(_renderSystem);
-
-        _systemManager.Initialize();
+        // Call base.Initialize() after our setup (this will call LoadContent)
+        base.Initialize();
     }
 
     protected override void LoadContent()
     {
         base.LoadContent();
 
-        // Initialize entity manager with content
-        if (_entityManager != null)
-        {
-            _entityManager.Initialize(Content);
-        }
-
-        // Load tilemap
-        _tilemap = Tilemap.FromFile(Content, EntityConfig.Tilemap.ConfigFile);
-        if (_tilemap != null)
-        {
-            _tilemap.Scale = EntityConfig.Tilemap.Scale;
-            Console.WriteLine($"Loaded tilemap: {_tilemap.Rows}x{_tilemap.Columns}, Scale: {_tilemap.Scale}");
-        }
-        else
-        {
-            Console.WriteLine("Failed to load tilemap!");
-        }
-
-        // Don't set tilemap here - do it in Update when systems are fully ready
+        // Load content for current scene
+        _sceneManager.LoadContent(Content);
     }
 
     protected override void Update(GameTime gameTime)
     {
-        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
+        // Exit only if we get the gamepad back button (not Escape, as that's handled by scenes)
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
             Exit();
 
-        // Set tilemap for render system on first update (when systems are fully ready)
-        if (!_tilemapSet && _renderSystem != null && _tilemap != null)
-        {
-            Console.WriteLine($"Setting tilemap in render system: {_tilemap.Rows}x{_tilemap.Columns}");
-            _renderSystem.SetTilemap(_tilemap);
-            _tilemapSet = true;
-        }
-
-        // Initialize game entities on first update (when GraphicsDevice is ready)
-        if (!_gameInitialized)
-        {
-            InitializeGame();
-        }
-
-        _systemManager.Update(gameTime);
+        // Update current scene
+        _sceneManager.Update(gameTime);
         base.Update(gameTime);
     }
 
@@ -128,78 +66,9 @@ public class Game1 : PrisonBreak.Core.Core
         GraphicsDevice.Clear(GameConfig.BackgroundColor);
 
         SpriteBatch.Begin(samplerState: SamplerState.PointClamp);
-        _systemManager.Draw(SpriteBatch);
+        _sceneManager.Draw(SpriteBatch);
         SpriteBatch.End();
 
         base.Draw(gameTime);
-    }
-
-    private void InitializeGame()
-    {
-        // Make sure entity manager is initialized
-        if (_entityManager != null)
-        {
-            _entityManager.Initialize(Content);
-        }
-
-        // Calculate room bounds
-        Rectangle screenBounds = GraphicsDevice.PresentationParameters.Bounds;
-        _roomBounds = new Rectangle(
-            (int)_tilemap.TileWidth,
-            (int)_tilemap.TileHeight,
-            screenBounds.Width - (int)_tilemap.TileWidth * 2,
-            screenBounds.Height - (int)_tilemap.TileHeight * 2
-        );
-
-        // Set bounds for collision system
-        _collisionSystem.SetBounds(_roomBounds, _tilemap);
-
-        // Set up tile-based collision map for movement system
-        _movementSystem.SetCollisionMap(_tilemap, Vector2.Zero);
-
-        // Create player entity
-        int centerRow = _tilemap.Rows / 2;
-        int centerColumn = _tilemap.Columns / 2;
-        Vector2 playerStartPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
-
-        var playerEntity = _entityManager.CreatePlayer(playerStartPos, PlayerIndex.One, PlayerType.Prisoner);
-
-        // Create cop entities
-        Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
-        Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
-
-        var cop1 = _entityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
-        var cop2 = _entityManager.CreateCop(copStartPos2, AIBehavior.Wander);
-
-        // Add bounds constraints to all entities
-        _entityManager.AddBoundsConstraint(playerEntity, _roomBounds, false); // Player clamps
-        _entityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
-        _entityManager.AddBoundsConstraint(cop2, _roomBounds, true);
-
-        // Note: Wall collision is now handled by tile-based collision map in movement system
-        // No need to create individual wall entities
-
-        _gameInitialized = true;
-
-        // Subscribe to events for debugging
-        _eventBus.Subscribe<EntitySpawnEvent>(OnEntitySpawn);
-        _eventBus.Subscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
-        _eventBus.Subscribe<TeleportEvent>(OnTeleport);
-    }
-
-    // Event handlers for debugging
-    private void OnEntitySpawn(EntitySpawnEvent spawnEvent)
-    {
-        Console.WriteLine($"Entity {spawnEvent.EntityId} ({spawnEvent.EntityType}) spawned at {spawnEvent.Position}");
-    }
-
-    private void OnPlayerCopCollision(PlayerCopCollisionEvent collisionEvent)
-    {
-        Console.WriteLine($"Player {collisionEvent.PlayerId} collided with Cop {collisionEvent.CopId}");
-    }
-
-    private void OnTeleport(TeleportEvent teleportEvent)
-    {
-        Console.WriteLine($"Entity {teleportEvent.EntityId} teleported from {teleportEvent.FromPosition} to {teleportEvent.ToPosition}");
     }
 }
