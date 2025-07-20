@@ -13,6 +13,13 @@
 
 #---------------------------------- Content ---------------------------------#
 
+#begin MinecraftFont.spritefont
+/importer:FontDescriptionImporter
+/processor:LocalizedFontProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/build:MinecraftFont.spritefont
+
 #begin images/atlas-definition.xml
 /copy:images/atlas-definition.xml
 
@@ -30,4 +37,5 @@
 
 #begin images/tilemap-definition.xml
 /copy:images/tilemap-definition.xml
+
 

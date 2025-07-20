@@ -737,4 +737,49 @@ The component-based architecture provides:
 
 This architecture will serve your game well as it grows in complexity, supports multiplayer, and requires high performance. The investment in learning ECS concepts pays off hugely in the long term.
 
+## 🎬 Scene Management Layer (NEW - 2024)
+
+### Overview
+The ECS architecture has been enhanced with a **Scene Management System** that provides proper game state separation while preserving all ECS benefits.
+
+### Scene Architecture
+```
+SceneManager
+├── StartMenuScene
+│   ├── MenuInputSystem
+│   ├── MenuRenderSystem  
+│   └── Menu Entities (MenuItemComponent, TextComponent)
+└── GameplayScene
+    ├── ComponentInputSystem
+    ├── ComponentMovementSystem
+    ├── ComponentCollisionSystem
+    ├── ComponentRenderSystem
+    └── Game Entities (Player, Cops, etc.)
+```
+
+### Key Benefits
+✅ **Clean State Management** - Menu and gameplay completely isolated  
+✅ **Professional UX** - Proper start screen with player type selection  
+✅ **ECS Preserved** - Each scene uses ECS architecture internally  
+✅ **Easy Expansion** - Add pause menus, level selection, etc.  
+✅ **Memory Efficient** - Scenes load/unload content independently  
+
+### Player Type System
+The scene system enabled implementing player type selection:
+- **PlayerTypeComponent**: Distinguishes Prisoner vs Cop players
+- **Dynamic Attributes**: Different speeds and animations per type
+- **Menu Integration**: Live player type switching in start menu
+
+### Scene Transitions
+```csharp
+// Event-driven scene switching
+EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.Gameplay, gameData));
+```
+
+The **Scene + ECS hybrid architecture** provides the ultimate combination:
+- **Game-level organization** through scenes
+- **Entity-level flexibility** through ECS  
+- **Professional presentation** through proper menus
+- **Future-proof foundation** for complex games
+
 Your game is now future-proof and ready to scale to any complexity level! 🚀
