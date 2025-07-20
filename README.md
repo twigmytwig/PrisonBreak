@@ -183,6 +183,53 @@ This project previously used an inheritance-based entity system. The migration p
 - [`GameLoopArchitectureComponentBased.md`](PrisonBreak/_memory/GameLoopAndSystems/GameLoopArchitectureComponentBased.md) - Detailed ECS architecture explanation
 - [`futurePlans.md`](PrisonBreak/_memory/futurePlans.md) - Original refactoring plan and rationale
 
+## 🧱 Advanced Tile-Based Collision System
+
+This project features an **efficient tile-based collision system** that provides smooth wall collision and high performance:
+
+### **🎯 Key Features**
+- **Tile-based collision map** - O(1) collision detection vs O(n) entity checks
+- **Smooth wall sliding** - Natural movement along wall edges without getting stuck
+- **Adjacent wall support** - Perfect handling of connected wall segments
+- **Performance scaling** - Handles hundreds of walls without FPS degradation
+- **Predictive collision** - Prevents clipping by checking movement before execution
+
+### **🔧 How It Works**
+1. **Collision Map Generation** - Creates 2D boolean array from tilemap data
+2. **Grid-Based Detection** - Converts world positions to tile coordinates for instant lookup
+3. **Swept Movement** - Tests movement path in small steps to find exact collision points
+4. **Smart Sliding** - Projects remaining movement along wall surfaces
+5. **Stuck Recovery** - Automatically escapes if player gets trapped in walls
+
+### **⚙️ Adding Collidable Tiles**
+
+To add new solid tile types, update the `solidTileIds` array in `ComponentMovementSystem.SetCollisionMap()`:
+
+```csharp
+// In ComponentMovementSystem.cs
+int[] solidTileIds = { 2, 3, 4, 5 }; // Add new tile IDs here
+// 02 = prison bars, 03 = walls, 04 = tables, 05 = doors, etc.
+```
+
+Then update your tilemap XML file to use the new tile IDs:
+```xml
+<Tiles>
+    00 00 04 04 04 00 00  <!-- 04 = tables -->
+    00 00 03 02 03 00 00  <!-- 03 = walls, 02 = prison bars -->
+    00 00 05 00 05 00 00  <!-- 05 = doors -->
+</Tiles>
+```
+
+### **📈 Performance Comparison**
+
+| Feature | Old System (Entity-based) | New System (Tile-based) |
+|---------|---------------------------|-------------------------|
+| **Collision Detection** | O(n) per entity per wall | O(1) tile lookup |
+| **Memory Usage** | High (entity per tile) | Low (2D boolean array) |
+| **Adjacent Walls** | Buggy collision confusion | Perfect seamless handling |
+| **Scalability** | Degrades with wall count | Constant performance |
+| **Wall Sliding** | Harsh, gets stuck | Smooth, natural movement |
+
 ## 🚀 Performance Benefits
 
 The ECS architecture provides significant performance improvements:
@@ -191,6 +238,7 @@ The ECS architecture provides significant performance improvements:
 - **Cache-friendly memory layout** - Components stored contiguously
 - **Reduced type checking** - Direct component access without casting
 - **Batch operations** - Process similar operations together
+- **Tile-based collision** - O(1) collision detection for environment
 
 ## 🌐 Multiplayer Ready
 

@@ -12,6 +12,9 @@ public class ComponentMovementSystem : IGameSystem
     private ComponentEntityManager _entityManager;
     private EventBus _eventBus;
     private Random _random = new Random();
+    private bool[,] _collisionMap;
+    private float _tileSize;
+    private Vector2 _mapOffset;
 
     public void SetEntityManager(ComponentEntityManager entityManager)
     {
@@ -24,6 +27,31 @@ public class ComponentMovementSystem : IGameSystem
 
         // Subscribe to input events
         _eventBus.Subscribe<PlayerInputEvent>(OnPlayerInput);
+    }
+    
+    public void SetCollisionMap(Core.Graphics.Tilemap tilemap, Vector2 offset)
+    {
+        if (tilemap == null) return;
+        
+        _tileSize = tilemap.TileWidth;
+        _mapOffset = offset;
+        
+        // Create collision map from tilemap
+        _collisionMap = new bool[tilemap.Columns, tilemap.Rows];
+        
+        // Solid tile IDs (02 = prison bars, 03 = walls)
+        int[] solidTileIds = { 2, 3 };
+        
+        for (int row = 0; row < tilemap.Rows; row++)
+        {
+            for (int col = 0; col < tilemap.Columns; col++)
+            {
+                int tileId = tilemap.GetTileId(col, row);
+                _collisionMap[col, row] = Array.Exists(solidTileIds, id => id == tileId);
+            }
+        }
+        
+        Console.WriteLine($"Created collision map: {tilemap.Columns}x{tilemap.Rows}, TileSize: {_tileSize}");
     }
 
     public void Initialize()
@@ -51,8 +79,18 @@ public class ComponentMovementSystem : IGameSystem
             ref var movement = ref entity.GetComponent<MovementComponent>();
             ref var transform = ref entity.GetComponent<TransformComponent>();
 
-            // Apply velocity to position
-            transform.Position += movement.Velocity * deltaTime;
+            // Calculate intended new position
+            Vector2 intendedPosition = transform.Position + movement.Velocity * deltaTime;
+            Vector2 safePosition = intendedPosition;
+
+            // Check for wall collisions if entity has collision component
+            if (entity.HasComponent<CollisionComponent>())
+            {
+                safePosition = GetSafePosition(entity, transform.Position, intendedPosition);
+            }
+
+            // Apply the safe position
+            transform.Position = safePosition;
 
             // Apply friction
             movement.Velocity *= movement.Friction;
@@ -204,6 +242,184 @@ public class ComponentMovementSystem : IGameSystem
         float angle = _random.NextSingle() * MathF.PI * 2f;
         return new Vector2(MathF.Cos(angle), MathF.Sin(angle));
     }
+    
+    private bool IsTileSolid(int tileX, int tileY)
+    {
+        if (_collisionMap == null) return false;
+        
+        // Check bounds
+        if (tileX < 0 || tileY < 0 || tileX >= _collisionMap.GetLength(0) || tileY >= _collisionMap.GetLength(1))
+            return true; // Treat out-of-bounds as solid
+            
+        return _collisionMap[tileX, tileY];
+    }
+    
+    private Vector2 WorldToTile(Vector2 worldPos)
+    {
+        return new Vector2(
+            (worldPos.X - _mapOffset.X) / _tileSize,
+            (worldPos.Y - _mapOffset.Y) / _tileSize
+        );
+    }
+    
+    private Vector2 TileToWorld(Vector2 tilePos)
+    {
+        return new Vector2(
+            tilePos.X * _tileSize + _mapOffset.X,
+            tilePos.Y * _tileSize + _mapOffset.Y
+        );
+    }
+
+    private Vector2 GetSafePosition(Entity movingEntity, Vector2 currentPosition, Vector2 intendedPosition)
+    {
+        // Only check collision for players (entities with PlayerTag)
+        // Cops and AI entities can use the reactive collision system
+        if (!movingEntity.HasComponent<PlayerTag>() || _collisionMap == null)
+        {
+            return intendedPosition;
+        }
+
+        // Get player collision bounds and calculate offset from position
+        var collision = movingEntity.GetComponent<CollisionComponent>();
+        var worldBounds = collision.Collider.rectangleCollider;
+        
+        // Calculate the offset between player position and collision bounds
+        Vector2 colliderOffset = new Vector2(
+            worldBounds.X - currentPosition.X,
+            worldBounds.Y - currentPosition.Y
+        );
+        
+        // Create relative bounds (size + offset)
+        Rectangle relativeBounds = new Rectangle(
+            (int)colliderOffset.X,
+            (int)colliderOffset.Y,
+            worldBounds.Width,
+            worldBounds.Height
+        );
+        
+        // Use tile-based collision detection
+        return GetSafeMovementTileBased(currentPosition, intendedPosition, relativeBounds);
+    }
+    
+    private Vector2 GetSafeMovementTileBased(Vector2 from, Vector2 to, Rectangle playerBounds)
+    {
+        Vector2 movement = to - from;
+        float distance = movement.Length();
+        
+        if (distance < 0.1f) return to; // Too small to matter
+        
+        // Check if current position is already colliding - if so, try to move away
+        if (IsPositionCollidingWithTiles(from, playerBounds))
+        {
+            // Player is stuck in a wall - try to find nearest safe position
+            Vector2 escapedPosition = FindNearestSafePosition(from, playerBounds);
+            if (escapedPosition != from)
+            {
+                return escapedPosition;
+            }
+        }
+        
+        Vector2 direction = movement / distance;
+        Vector2 safePosition = from;
+        
+        // Test movement in smaller steps for better precision
+        float stepSize = Math.Min(4f, distance / 8f); // Smaller steps: 4px or 1/8 of movement
+        float currentDistance = 0f;
+        
+        while (currentDistance < distance)
+        {
+            float nextDistance = Math.Min(currentDistance + stepSize, distance);
+            Vector2 testPosition = from + direction * nextDistance;
+            
+            if (IsPositionCollidingWithTiles(testPosition, playerBounds))
+            {
+                // Collision detected - try sliding along walls
+                Vector2 slidePosition = TrySlideMovement(safePosition, to, playerBounds);
+                return slidePosition;
+            }
+            
+            safePosition = testPosition;
+            currentDistance = nextDistance;
+        }
+        
+        return to; // No collision detected
+    }
+    
+    private Vector2 FindNearestSafePosition(Vector2 stuckPosition, Rectangle playerBounds)
+    {
+        // Try small offsets in all directions to escape from being stuck
+        Vector2[] offsets = {
+            new Vector2(1, 0), new Vector2(-1, 0), new Vector2(0, 1), new Vector2(0, -1),
+            new Vector2(1, 1), new Vector2(-1, -1), new Vector2(1, -1), new Vector2(-1, 1)
+        };
+        
+        for (int distance = 1; distance <= 8; distance++)
+        {
+            foreach (var offset in offsets)
+            {
+                Vector2 testPos = stuckPosition + offset * distance;
+                if (!IsPositionCollidingWithTiles(testPos, playerBounds))
+                {
+                    return testPos;
+                }
+            }
+        }
+        
+        return stuckPosition; // Couldn't find safe position
+    }
+    
+    private bool IsPositionCollidingWithTiles(Vector2 position, Rectangle playerBounds)
+    {
+        // Calculate the rectangle the player would occupy at the test position
+        // Apply the collision bounds offset to the test position
+        Rectangle testBounds = new Rectangle(
+            (int)position.X + playerBounds.X,
+            (int)position.Y + playerBounds.Y,
+            playerBounds.Width,
+            playerBounds.Height
+        );
+        
+        // Convert player bounds to tile coordinates
+        Vector2 topLeft = WorldToTile(new Vector2(testBounds.Left, testBounds.Top));
+        Vector2 bottomRight = WorldToTile(new Vector2(testBounds.Right - 1, testBounds.Bottom - 1));
+        
+        // Check all tiles the player would overlap
+        for (int tileX = (int)Math.Floor(topLeft.X); tileX <= (int)Math.Floor(bottomRight.X); tileX++)
+        {
+            for (int tileY = (int)Math.Floor(topLeft.Y); tileY <= (int)Math.Floor(bottomRight.Y); tileY++)
+            {
+                if (IsTileSolid(tileX, tileY))
+                {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    private Vector2 TrySlideMovement(Vector2 safePos, Vector2 intendedPos, Rectangle playerBounds)
+    {
+        Vector2 remainingMovement = intendedPos - safePos;
+        
+        // Try horizontal movement only
+        Vector2 horizontalPos = new Vector2(intendedPos.X, safePos.Y);
+        if (!IsPositionCollidingWithTiles(horizontalPos, playerBounds))
+        {
+            return horizontalPos;
+        }
+        
+        // Try vertical movement only
+        Vector2 verticalPos = new Vector2(safePos.X, intendedPos.Y);
+        if (!IsPositionCollidingWithTiles(verticalPos, playerBounds))
+        {
+            return verticalPos;
+        }
+        
+        // Can't slide - stay at safe position
+        return safePos;
+    }
+
 
     private void UpdateColliderPosition(Entity entity, Vector2 newPosition)
     {

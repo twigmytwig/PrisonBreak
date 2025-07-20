@@ -76,10 +76,26 @@ if (entity.HasComponent<CollisionComponent>())
 ### System Execution Order
 ```
 1. ComponentInputSystem    - Process player input → events
-2. ComponentMovementSystem - Apply movement from events
-3. ComponentCollisionSystem - Detect/resolve collisions
+2. ComponentMovementSystem - Apply movement from events + tile collision detection
+3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
 4. ComponentRenderSystem   - Draw everything
 ```
+
+### Collision System Architecture
+
+This project uses a **dual collision system**:
+
+#### **Tile-Based Collision (Environment)**
+- **Handled by**: `ComponentMovementSystem` 
+- **Purpose**: Wall/environment collision detection
+- **Method**: 2D boolean collision map for O(1) tile lookups
+- **Features**: Smooth sliding, predictive collision, stuck recovery
+
+#### **Entity-Based Collision (Gameplay)**  
+- **Handled by**: `ComponentCollisionSystem`
+- **Purpose**: Game logic collisions (player-cop, player-pickup)
+- **Method**: Entity queries and rectangle intersection
+- **Features**: Event-driven collision responses
 
 ### Key System Methods
 ```csharp
@@ -95,14 +111,28 @@ public void Update(GameTime gameTime)
 {
     // Listens to PlayerInputEvent
     // Updates MovementComponent velocity
+    // Applies tile-based collision detection for players
     // Applies physics to all moving entities
+}
+
+// Tile-Based Collision Methods (in MovementSystem)
+public void SetCollisionMap(Tilemap tilemap, Vector2 offset)
+{
+    // Creates 2D boolean collision map from tilemap
+    // Maps tile IDs to solid/passable
+}
+
+private Vector2 GetSafePosition(Entity entity, Vector2 from, Vector2 to)
+{
+    // Predictive collision detection
+    // Returns safe movement position without wall penetration
 }
 
 // Collision System
 public void Update(GameTime gameTime)
 {
     // Checks boundary collisions
-    // Checks entity-to-entity collisions
+    // Checks entity-to-entity collisions (player-cop)
     // Sends collision events
 }
 
@@ -252,6 +282,38 @@ Console.WriteLine($"Movement: {stopwatch.ElapsedMilliseconds}ms");
 4. **Remove unused components** to keep queries fast
 5. **Profile individual systems** to find bottlenecks
 
+## 🧱 Tile-Based Collision Setup
+
+### Adding Collision Map to Movement System
+```csharp
+// In Game1.cs InitializeGame()
+_movementSystem.SetCollisionMap(_tilemap, Vector2.Zero);
+```
+
+### Defining Solid Tiles
+```csharp
+// In ComponentMovementSystem.SetCollisionMap()
+int[] solidTileIds = { 2, 3, 4, 5 }; // Add new solid tile IDs
+// 02 = prison bars, 03 = walls, 04 = tables, 05 = doors
+```
+
+### Tilemap Configuration Example
+```xml
+<!-- In tilemap-definition.xml -->
+<Tiles>
+    00 00 03 03 03 00 00  <!-- 03 = solid walls -->
+    00 00 03 02 03 00 00  <!-- 02 = prison bars -->
+    00 00 04 00 04 00 00  <!-- 04 = tables -->
+    00 00 00 00 00 00 00  <!-- 00 = empty space -->
+</Tiles>
+```
+
+### Performance Benefits
+- **O(1) collision detection** instead of O(n) entity checks
+- **No individual wall entities** needed - reduces memory usage
+- **Smooth wall sliding** - natural movement along connected walls
+- **Scalable** - performance doesn't degrade with wall count
+
 ## 🎮 Entity Recipes
 
 ### Fast Moving Player
@@ -262,15 +324,13 @@ speedster.AddComponent(new SpriteComponent(sprite));
 speedster.AddComponent(new MovementComponent(200f)); // Fast!
 speedster.AddComponent(new PlayerInputComponent(PlayerIndex.One));
 speedster.AddComponent(new PlayerTag(speedster.Id));
+// Wall collision handled automatically by tile-based system
 ```
 
-### Immovable Wall
+### Immovable Wall (Legacy - Use Tile System Instead)
 ```csharp
-var wall = entityManager.CreateEntity();
-wall.AddComponent(new TransformComponent(position));
-wall.AddComponent(new SpriteComponent(wallSprite));
-wall.AddComponent(new CollisionComponent(collider, isSolid: true));
-// No MovementComponent = cannot move
+// OLD APPROACH - No longer needed
+// Use tile-based collision system instead for better performance
 ```
 
 ### Invisible Trigger Zone
@@ -282,4 +342,4 @@ trigger.AddComponent(new CollisionComponent(collider, isSolid: false));
 trigger.AddComponent(new TriggerComponent("exit_zone"));
 ```
 
-This ECS system provides infinite flexibility while maintaining high performance!
+This ECS system provides infinite flexibility while maintaining high performance with efficient tile-based collision!

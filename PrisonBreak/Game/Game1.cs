@@ -154,6 +154,9 @@ public class Game1 : PrisonBreak.Core.Core
         // Set bounds for collision system
         _collisionSystem.SetBounds(_roomBounds, _tilemap);
         
+        // Set up tile-based collision map for movement system
+        _movementSystem.SetCollisionMap(_tilemap, Vector2.Zero);
+        
         // Create player entity
         int centerRow = _tilemap.Rows / 2;
         int centerColumn = _tilemap.Columns / 2;
@@ -173,8 +176,8 @@ public class Game1 : PrisonBreak.Core.Core
         _entityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
         _entityManager.AddBoundsConstraint(cop2, _roomBounds, true);
         
-        // Create collision entities for solid tiles (walls, tables)
-        CreateTileCollisionEntities();
+        // Note: Wall collision is now handled by tile-based collision map in movement system
+        // No need to create individual wall entities
         
         _gameInitialized = true;
         
@@ -182,55 +185,6 @@ public class Game1 : PrisonBreak.Core.Core
         _eventBus.Subscribe<EntitySpawnEvent>(OnEntitySpawn);
         _eventBus.Subscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
         _eventBus.Subscribe<TeleportEvent>(OnTeleport);
-    }
-    
-    private void CreateTileCollisionEntities()
-    {
-        if (_tilemap == null || _entityManager == null) 
-        {
-            Console.WriteLine("Cannot create tile collision: tilemap or entityManager is null");
-            return;
-        }
-        
-        Console.WriteLine($"Creating collision entities from tilemap: {_tilemap.Rows}x{_tilemap.Columns}");
-        
-        // Define which tile IDs should have collision (02 = tables, 03 = walls)
-        int[] solidTileIds = { 2, 3 };
-        
-        int wallCount = 0;
-        
-        // Loop through each tile in the tilemap
-        for (int row = 0; row < _tilemap.Rows; row++)
-        {
-            for (int col = 0; col < _tilemap.Columns; col++)
-            {
-                int tileId = _tilemap.GetTileId(col, row);
-                
-                // Check if this tile should be solid
-                if (Array.Exists(solidTileIds, id => id == tileId))
-                {
-                    // Calculate world position for this tile
-                    Vector2 position = new Vector2(col * _tilemap.TileWidth, row * _tilemap.TileHeight);
-                    Vector2 size = new Vector2(_tilemap.TileWidth, _tilemap.TileHeight);
-                    
-                    // Create collision entity
-                    var wallEntity = _entityManager.CreateEntity();
-                    wallEntity.AddComponent(new TransformComponent(position));
-                    
-                    // Create collider that matches tile position and size
-                    var collider = new Core.Physics.RectangleCollider((int)position.X, (int)position.Y, (int)size.X, (int)size.Y);
-                    wallEntity.AddComponent(new CollisionComponent(collider) { IsSolid = true });
-                    
-                    // Add wall tag so collision system can find it
-                    string wallType = tileId == 2 ? "prison_bars" : "wall";
-                    wallEntity.AddComponent(new WallTag(wallType));
-                    
-                    wallCount++;
-                }
-            }
-        }
-        
-        Console.WriteLine($"Created {wallCount} collision entities for solid tiles");
     }
     
     // Event handlers for debugging
