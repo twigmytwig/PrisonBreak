@@ -22,14 +22,22 @@ obj/
 *.user
 *.suo
 
-# MonoGame Content Pipeline
+# MonoGame Content Pipeline  
 Content/bin/
 Content/obj/
+**/Content/bin/
+**/Content/obj/
 *.xnb
+*.mgcontent
+*.mgstats
 
 # Temporary files
 *.tmp
 *.log
+
+# IDE and Editor settings (personal/local)
+.vscode/
+.config/
 
 # OS files
 .DS_Store
