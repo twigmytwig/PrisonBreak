@@ -1,4 +1,0 @@
-Source File,Dest File,Processor Type,Content Type,Source File Size,Dest File Size,Build Seconds
-"/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/images/atlas-definition.xml","/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/bin/DesktopGL/Content/images/atlas-definition.xml","CopyItem","File",996,996,0.0001437
-"/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/images/PrisonerBreak.png","/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/bin/DesktopGL/Content/images/PrisonerBreak.xnb","TextureProcessor","Texture2DContent",1879,49237,0.0472794
-"/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/images/tilemap-definition.xml","/home/trevorhedgpeth/projects/games/prisonbreak/PrisonBreak/Content/bin/DesktopGL/Content/images/tilemap-definition.xml","CopyItem","File",687,687,0.000143
