@@ -213,6 +213,10 @@ public class ComponentEntityManager
         );
         entity.AddComponent(new CollisionComponent(collider));
         
+        // Inventory - initialize based on player type
+        var inventory = new InventoryComponent(playerTypeComponent.InventorySlots);
+        entity.AddComponent(inventory);
+        
         // Debug
         if (EntityConfig.Player.DebugMode)
         {

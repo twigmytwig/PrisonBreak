@@ -80,10 +80,12 @@ if (entity.HasComponent<CollisionComponent>())
 | `CopTag` | Mark as cop | `int CopId` |
 | `DebugComponent` | Debug rendering | Debug flags |
 
-### Game Features (NEW)
+### Game Features
 | Component | Purpose | Key Fields |
 |-----------|---------|------------|
-| `PlayerTypeComponent` | Player classification | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
+| `PlayerTypeComponent` | Player classification | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName`, `int InventorySlots` |
+| `InventoryComponent` | Item storage | `int MaxSlots`, `Entity[] Items`, `int ItemCount` |
+| `ItemComponent` | Item properties | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize` |
 
 ### Menu/UI Components (NEW)
 | Component | Purpose | Key Fields |
@@ -100,7 +102,8 @@ if (entity.HasComponent<CollisionComponent>())
 1. ComponentInputSystem    - Process player input → events
 2. ComponentMovementSystem - Apply movement from events + tile collision detection
 3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
-4. ComponentRenderSystem   - Draw everything
+4. InventorySystem         - Manage player inventories and item interactions
+5. ComponentRenderSystem   - Draw everything
 ```
 
 #### Start Menu Scene (NEW)
@@ -240,6 +243,40 @@ entity.AddComponent(new MovementComponent(100f));
 entity.AddComponent(new AIComponent(AIBehavior.Flee));
 ```
 
+### Inventory Management Pattern
+```csharp
+// Create an item
+var item = entityManager.CreateEntity();
+item.AddComponent(new ItemComponent 
+{
+    ItemName = "Key",
+    ItemType = "tool",
+    IsStackable = false,
+    StackSize = 1
+});
+
+// Add item to player inventory
+var inventorySystem = systemManager.GetSystem<InventorySystem>();
+bool added = inventorySystem.TryAddItem(playerEntity, item);
+
+if (!added)
+{
+    // Handle inventory full - maybe drop on ground
+    Console.WriteLine("Inventory is full!");
+}
+
+// Remove item from specific slot
+bool removed = inventorySystem.TryRemoveItem(playerEntity, slotIndex: 0);
+
+// Check what's in a slot
+Entity itemInSlot = inventorySystem.GetItemAtSlot(playerEntity, slotIndex: 1);
+if (itemInSlot != null && itemInSlot.HasComponent<ItemComponent>())
+{
+    var itemData = itemInSlot.GetComponent<ItemComponent>();
+    Console.WriteLine($"Slot 1 contains: {itemData.ItemName}");
+}
+```
+
 ## 🔧 System Manager Usage
 
 ### Setup
@@ -250,6 +287,7 @@ var systemManager = new SystemManager();
 systemManager.AddSystem(new ComponentInputSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentMovementSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentCollisionSystem(entityManager, eventBus));
+systemManager.AddSystem(new InventorySystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentRenderSystem(entityManager));
 
 // Initialize all systems

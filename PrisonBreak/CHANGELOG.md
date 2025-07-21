@@ -15,12 +15,19 @@
 - **Dynamic Selection**: Choose between Prisoner and Cop in start menu
 - **Attribute Differences**: Different speeds and animations per player type
 - **Runtime Switching**: Live player type changes in menu
+- **Inventory Integration**: Type-specific inventory slots (Prisoner: 3, Cop: 4)
 
 #### 🎨 Menu Infrastructure
 - **MenuInputSystem**: Keyboard/gamepad navigation (Arrow keys, Enter, ESC)
 - **MenuRenderSystem**: Professional text rendering with font support
 - **Font Integration**: MonoGame Content Pipeline with Minecraft font
 - **UI Components**: MenuItemComponent and TextComponent for flexible menus
+
+#### 🎒 Inventory System (Core Implementation)
+- **InventorySystem**: Complete core inventory management system
+- **Event-Driven**: ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent
+- **Player Integration**: Automatic inventory initialization based on player type
+- **Slot Management**: Add/remove items with slot-based organization
 
 ### 🏗️ Architectural Improvements
 
@@ -68,6 +75,7 @@ PlayerTypeComponent {
     PlayerType Type;           // Prisoner or Cop
     float SpeedMultiplier;     // Type-specific speed
     string AnimationName;      // Type-specific animations
+    int InventorySlots;        // Type-specific inventory capacity
 }
 
 MenuItemComponent {
@@ -80,6 +88,19 @@ TextComponent {
     string Text;             // Display text
     SpriteFont Font;         // Font reference
     TextAlignment Alignment; // Text positioning
+}
+
+InventoryComponent {
+    int MaxSlots;             // Maximum inventory capacity
+    Entity[] Items;           // Array of item entities
+    int ItemCount;            // Current number of items
+}
+
+ItemComponent {
+    string ItemName;          // Display name
+    string ItemType;          // Item category
+    bool IsStackable;         // Can items stack
+    int StackSize;            // Maximum stack size
 }
 ```
 
@@ -124,7 +145,8 @@ Scenes/
 
 ECS/Systems/
 ├── MenuInputSystem.cs
-└── MenuRenderSystem.cs
+├── MenuRenderSystem.cs
+└── InventorySystem.cs
 
 Content/
 ├── MinecraftFont.spritefont
@@ -134,7 +156,9 @@ Content/
 #### Modified Files
 ```
 Game1.cs - Refactored to scene delegation
-Components.cs - Added PlayerTypeComponent, MenuItemComponent, TextComponent  
+Components.cs - Added PlayerTypeComponent, MenuItemComponent, TextComponent, InventoryComponent, ItemComponent
+EventSystem.cs - Added inventory events (ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent)
+ComponentEntityManager.cs - Updated CreatePlayer() to initialize inventory based on player type
 ```
 
 ### 🎯 Ready for Next Phase

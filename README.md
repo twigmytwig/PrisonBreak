@@ -29,6 +29,7 @@ Players control prisoners trying to escape from a prison while avoiding AI-contr
 - **AI-driven enemies** - Cops with various behavior patterns  
 - **Component-based entities** - Mix and match behaviors
 - **Player type system** - Choose between Prisoner and Cop with distinct abilities
+- **Inventory system** - Player inventories with type-specific capacities
 - **Scene-based architecture** - Clean separation between menu and gameplay
 - **Scalable design** - Easy to add new entity types and game modes
 
@@ -71,6 +72,8 @@ Entity (ID + Components)
 │   ├── CollisionComponent (bounds, collision data)
 │   ├── PlayerInputComponent (input handling)
 │   ├── PlayerTypeComponent (Prisoner/Cop classification)
+│   ├── InventoryComponent (item storage)
+│   ├── ItemComponent (item properties)
 │   ├── MenuItemComponent (UI elements)
 │   ├── TextComponent (text rendering)
 │   └── AIComponent (autonomous behavior)
@@ -78,6 +81,7 @@ Entity (ID + Components)
     ├── ComponentInputSystem / MenuInputSystem
     ├── ComponentMovementSystem
     ├── ComponentCollisionSystem
+    ├── InventorySystem
     └── ComponentRenderSystem / MenuRenderSystem
 ```
 
@@ -91,7 +95,9 @@ Entity (ID + Components)
 | `CollisionComponent` | Collision detection | `RectangleCollider`, `bool IsSolid`, `string Layer` |
 | `PlayerInputComponent` | Input handling | `PlayerIndex`, input state |
 | `AIComponent` | AI behaviors | `AIBehavior`, state machine data |
-| `PlayerTypeComponent` | Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName` |
+| `PlayerTypeComponent` | Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName`, `int InventorySlots` |
+| `InventoryComponent` | Item storage | `int MaxSlots`, `Entity[] Items`, `int ItemCount` |
+| `ItemComponent` | Item properties | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize` |
 | `MenuItemComponent` | **NEW** UI elements | `bool IsSelected`, `Color BackgroundColor`, `int Width`, `int Height` |
 | `TextComponent` | **NEW** Text rendering | `string Text`, `SpriteFont Font`, `Color Color`, `TextAlignment` |
 
@@ -105,7 +111,8 @@ Entity (ID + Components)
 1. **ComponentInputSystem** - Captures input, sends events
 2. **ComponentMovementSystem** - Processes movement events, applies physics  
 3. **ComponentCollisionSystem** - Detects collisions, sends collision events
-4. **ComponentRenderSystem** - Draws everything
+4. **InventorySystem** - Manages player inventories and item interactions
+5. **ComponentRenderSystem** - Draws everything
 
 ## 👥 Player Type System
 
@@ -115,11 +122,13 @@ The game features a flexible player type system that differentiates between pris
 - **Prisoners** - Human-controlled players trying to escape
   - Uses "prisoner-animation" sprite
   - Standard movement speed (1.0x multiplier)
+  - 3 inventory slots
   - Targeted by AI cops
 
 - **Cops** - Can be AI or human-controlled
   - Uses "cop-animation" sprite  
   - Faster movement speed (1.2x multiplier)
+  - 4 inventory slots (higher capacity)
   - AI cops automatically target prisoners
 
 ### **PlayerTypeComponent**
@@ -129,6 +138,7 @@ public struct PlayerTypeComponent
     public PlayerType Type;           // Prisoner or Cop
     public float SpeedMultiplier;     // Speed modifier (cops are faster)
     public string AnimationName;      // Sprite animation to use
+    public int InventorySlots;        // Type-specific inventory capacity
 }
 ```
 
@@ -154,7 +164,7 @@ The system is designed for easy expansion:
 - Additional player types (guards, special prisoners, etc.)
 - Custom animations per type
 - Type-specific abilities and permissions
-- Inventory restrictions based on player type
+- Item access restrictions based on player type
 
 ## 🗂️ Project Structure
 
@@ -179,6 +189,7 @@ PrisonBreak/
 │       ├── ComponentMovementSystem.cs
 │       ├── ComponentCollisionSystem.cs
 │       ├── ComponentRenderSystem.cs
+│       ├── InventorySystem.cs       # NEW: Inventory management
 │       ├── MenuInputSystem.cs       # NEW: Menu navigation
 │       └── MenuRenderSystem.cs      # NEW: UI rendering
 ├── Scenes/                          # NEW: Scene management

@@ -154,3 +154,43 @@ public struct TeleportEvent
         ToPosition = to;
     }
 }
+
+public struct ItemAddedEvent
+{
+    public int PlayerId;
+    public Entity ItemEntity;
+    public int SlotIndex;
+    
+    public ItemAddedEvent(int playerId, Entity itemEntity, int slotIndex)
+    {
+        PlayerId = playerId;
+        ItemEntity = itemEntity;
+        SlotIndex = slotIndex;
+    }
+}
+
+public struct ItemRemovedEvent
+{
+    public int PlayerId;
+    public Entity ItemEntity;
+    public int SlotIndex;
+    
+    public ItemRemovedEvent(int playerId, Entity itemEntity, int slotIndex)
+    {
+        PlayerId = playerId;
+        ItemEntity = itemEntity;
+        SlotIndex = slotIndex;
+    }
+}
+
+public struct InventoryFullEvent
+{
+    public int PlayerId;
+    public Entity AttemptedItem;
+    
+    public InventoryFullEvent(int playerId, Entity attemptedItem)
+    {
+        PlayerId = playerId;
+        AttemptedItem = attemptedItem;
+    }
+}

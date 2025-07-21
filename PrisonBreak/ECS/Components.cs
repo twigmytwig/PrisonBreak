@@ -240,6 +240,15 @@ public struct InventoryComponent
     public int MaxSlots;
     public Entity[] Items;
     public int ItemCount;
+    
+    public InventoryComponent(int maxSlots)
+    {
+        MaxSlots = maxSlots;
+        Items = new Entity[maxSlots];
+        ItemCount = 0;
+        
+        // Items array is already initialized with null values by default
+    }
 }
 
 public struct ItemComponent
