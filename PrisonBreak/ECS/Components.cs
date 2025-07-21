@@ -1,5 +1,5 @@
+using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 using PrisonBreak.Core.Graphics;
 using PrisonBreak.Core.Physics;
 
@@ -203,14 +203,21 @@ public struct PlayerTypeComponent
     public PlayerType Type;
     public float SpeedMultiplier;    // Cops might be faster
     public string AnimationName;     // Animation to use for this player type
-    
+    public int InventorySlots => Type switch
+    {
+        PlayerType.Prisoner => 3,
+        PlayerType.Cop => 4,
+        _ => 3
+    };
+
     public PlayerTypeComponent(PlayerType type, string animationName = null)
     {
         Type = type;
         SpeedMultiplier = type == PlayerType.Cop ? 1.2f : 1.0f;
         AnimationName = animationName ?? GetDefaultAnimation(type);
+
     }
-    
+
     private static string GetDefaultAnimation(PlayerType type)
     {
         return type switch
@@ -225,5 +232,20 @@ public struct PlayerTypeComponent
 public enum PlayerType
 {
     Prisoner,
-    Cop
+    Cop,
+}
+
+public struct InventoryComponent
+{
+    public int MaxSlots;
+    public Entity[] Items;
+    public int ItemCount;
+}
+
+public struct ItemComponent
+{
+    public string ItemName;
+    public string ItemType; // TODO: this should be not a string probably
+    public bool IsStackable;
+    public int StackSize;
 }
