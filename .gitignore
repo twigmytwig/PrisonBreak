@@ -37,7 +37,8 @@ Content/obj/
 
 # IDE and Editor settings (personal/local)
 .vscode/
-.config/
+.vs/
+#.config/
 
 # OS files
 .DS_Store
