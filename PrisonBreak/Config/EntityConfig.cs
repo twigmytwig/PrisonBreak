@@ -29,4 +29,9 @@ public static class EntityConfig
     {
         public const string ConfigFile = "images/atlas-definition.xml";
     }
+
+    public static class UIAtlas
+    {
+        public const string ConfigFile = "images/ui-atlas-definition.xml";
+    }
 }

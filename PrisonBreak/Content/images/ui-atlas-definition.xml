@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas>
+    <Texture>images/PrisonBreakUI</Texture>
+    <Regions>
+        <!-- Single 16x16 inventory slot sprite -->
+        <Region name="inventory-slot" x="0" y="0" width="16" height="16" />
+        
+        <!-- Add more 16x16 UI sprites here as you create them -->
+        <!-- Example for future sprites:
+        <Region name="button-normal" x="16" y="0" width="16" height="16" />
+        <Region name="button-hover" x="32" y="0" width="16" height="16" />
+        <Region name="health-bar-full" x="0" y="16" width="16" height="16" />
+        -->
+    </Regions>
+    <Animations>
+        <!-- Static UI sprites - single frame animations -->
+        <Animation name="inventory-slot" delay="1000">
+            <Frame region="inventory-slot" />
+        </Animation>
+        
+        <!-- Add UI animations here when needed -->
+        
+    </Animations>
+</TextureAtlas>

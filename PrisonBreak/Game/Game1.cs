@@ -1,14 +1,8 @@
-using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using PrisonBreak.Core;
-using PrisonBreak.Core.Graphics;
 using PrisonBreak.Config;
-using PrisonBreak.Managers;
-using PrisonBreak.Systems;
 using PrisonBreak.ECS;
-using PrisonBreak.ECS.Systems;
 using PrisonBreak.Scenes;
 
 namespace PrisonBreak.Game;

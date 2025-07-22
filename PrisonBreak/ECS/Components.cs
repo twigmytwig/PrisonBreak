@@ -258,3 +258,21 @@ public struct ItemComponent
     public bool IsStackable;
     public int StackSize;
 }
+
+public struct InventorySlotUIComponent
+{
+    public int PlayerId;           // Unique per player (1, 2, 3, etc.)
+    public int SlotIndex;          // Slot position (0, 1, 2, etc.)
+    public Entity ContainedItem;   // Current item in slot (null if empty)
+    public bool IsVisible;         // Show/hide this slot
+    public bool IsLocalPlayer;     // For UI positioning differences
+
+    public InventorySlotUIComponent(int playerId, int slotIndex, bool isLocalPlayer = true)
+    {
+        PlayerId = playerId;
+        SlotIndex = slotIndex;
+        ContainedItem = null;
+        IsVisible = true;
+        IsLocalPlayer = isLocalPlayer;
+    }
+}

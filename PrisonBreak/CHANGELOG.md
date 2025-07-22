@@ -1,6 +1,72 @@
 # Prison Break Game - Major Release
 
-## 🎉 v2.0.0 - Scene-Based Architecture (2024)
+## 🎉 v0.1.2 - Inventory System UI Implementation (2025)
+
+### ✨ NEW Features Added
+
+#### 🎒 Inventory UI System
+- **InventoryUIRenderSystem**: Complete visual rendering system for inventory interface
+- **Real-time Display**: Live inventory state visualization during gameplay
+- **Dynamic Slots**: UI adapts to player type (Prisoner: 3 slots, Cop: 4 slots)
+- **UI Atlas Integration**: Consistent visual design using PrisonBreakUI.png atlas
+- **Empty Slot Rendering**: Clear visual indicators for available inventory space
+- **Item Icon Display**: Visual representation of items in inventory slots
+
+### 🏗️ Technical Implementation
+
+#### NEW Components Enhanced
+```csharp
+// Enhanced inventory rendering capability
+InventoryUIRenderSystem {
+    DrawInventoryGrid()      // Renders slot grid based on capacity
+    DrawInventorySlots()     // Individual slot rendering with items
+    DrawEmptySlots()         // Visual placeholders for empty slots
+    UpdateInventoryUI()      // Real-time state synchronization
+}
+```
+
+#### NEW Files Added
+```
+ECS/Systems/
+└── InventoryUIRenderSystem.cs    // Complete inventory UI rendering system
+
+Content/images/
+├── PrisonBreakUI.png             // UI atlas for inventory interface
+├── PrisonBreakUI.aseprite        // Source graphics file
+└── ui-atlas-definition.xml       // UI element definitions
+```
+
+### 🎮 User Experience Improvements
+
+#### Visual Inventory System
+- **Clear Visual Feedback**: Players can see their inventory status at all times
+- **Slot-based Interface**: Each inventory slot is clearly defined and visible
+- **Type-aware Display**: Different inventory capacities shown based on player type
+- **Consistent Styling**: UI elements match game's visual theme
+
+### 🚀 Foundation for Advanced Features
+
+This inventory UI system provides the foundation for:
+- **Item Interaction**: Ready for pickup/drop mechanics
+- **Chest Interfaces**: Framework for container interaction
+- **Item Management**: Visual item organization and manipulation
+- **Inventory Screens**: Full-screen inventory management interfaces
+
+---
+
+## 🎉 v0.1.1 - Core Inventory System (2024)
+
+### ✨ NEW Features Added
+
+#### 🎒 Complete Inventory System (Core Implementation)
+- **InventorySystem**: Complete core inventory management system
+- **Event-Driven**: ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent
+- **Player Integration**: Automatic inventory initialization based on player type
+- **Slot Management**: Add/remove items with slot-based organization
+
+---
+
+## 🎉 v0.1.0 - Scene-Based Architecture (2024)
 
 ### ✨ Major Features Added
 
