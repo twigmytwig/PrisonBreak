@@ -213,13 +213,10 @@ public class InteractionSystem : IGameSystem
 
     private void HandleChestInteraction(Entity playerEntity, Entity chestEntity)
     {
-        // For now, just print a message - in Phase 3 this would open chest UI
-        Console.WriteLine("Chest interaction detected - opening chest UI (not implemented yet)");
+        Console.WriteLine($"Chest interaction detected - opening chest UI for chest {chestEntity.Id}");
         
-        // TODO: In Phase 3, this would:
-        // 1. Transition to InventoryUIScene
-        // 2. Show both player and chest inventories
-        // 3. Allow item transfers between them
+        // Send chest UI open event
+        _eventBus?.Send(new ChestUIOpenEvent(chestEntity, playerEntity));
     }
 
     private void HandleDoorInteraction(Entity playerEntity, Entity doorEntity)

@@ -218,3 +218,27 @@ public struct InteractionEvent
         InteractionType = interactionType;
     }
 }
+
+public struct ChestUIOpenEvent
+{
+    public Entity ChestEntity;
+    public Entity PlayerEntity;
+    
+    public ChestUIOpenEvent(Entity chestEntity, Entity playerEntity)
+    {
+        ChestEntity = chestEntity;
+        PlayerEntity = playerEntity;
+    }
+}
+
+public struct ChestUICloseEvent
+{
+    public Entity ChestEntity;
+    public Entity PlayerEntity;
+    
+    public ChestUICloseEvent(Entity chestEntity, Entity playerEntity)
+    {
+        ChestEntity = chestEntity;
+        PlayerEntity = playerEntity;
+    }
+}

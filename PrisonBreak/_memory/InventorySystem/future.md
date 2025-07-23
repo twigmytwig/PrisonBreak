@@ -8,7 +8,7 @@ Comprehensive inventory system allowing players to collect, manage, and interact
 
 ✅ **Phase 1: Core Inventory Functionality** - COMPLETED  
 ✅ **Phase 2: Interaction System** - COMPLETED  
-🚧 **Phase 3: Chest/Container UI** - Not Started
+🚧 **Phase 3: Chest/Container UI** - Partially Completed
 
 ### ✅ COMPLETED FEATURES:
 
@@ -27,6 +27,12 @@ Comprehensive inventory system allowing players to collect, manage, and interact
 ✅ **Item Pickup System** - Full world→inventory transfer with separate entity creation
 ✅ **UI Integration** - Real-time inventory display with item pickup visual feedback
 ✅ **Chest Sprite Integration** - Added chest sprite to UI atlas configuration
+✅ **ChestUIRenderSystem** - Complete chest overlay UI rendering system with modal interface
+✅ **Chest UI Events** - ChestUIOpenEvent/CloseEvent for clean UI state management
+✅ **OverlayAtlas System** - Separate texture atlas for large UI panels (48x48+)
+✅ **Chest UI Input Handling** - ESC key and gamepad B button support for closing chest UI
+✅ **UI Scaling System** - 4x scaling (48x48 → 192x192) for better visibility
+✅ **Input State Management** - Proper key press detection prevents accidental menu transitions
 
 ## Implementation Phases
 
@@ -182,11 +188,32 @@ Comprehensive inventory system allowing players to collect, manage, and interact
 ✅ Debug logging for troubleshooting
 ```
 
-### Phase 3: Chest/Container System
+### 🚧 Phase 3: Chest/Container UI - Partially Completed
 
-#### 3.1 InventoryUIScene (Not Started)
+#### ✅ 3.1 Chest UI Overlay System - COMPLETED
 
-**Modal overlay for inventory management:**
+**✅ ChestUIRenderSystem.cs implemented:**
+- ✅ Modal chest overlay rendering with 4x scaling (48x48 → 192x192)
+- ✅ Event-driven UI state management (ChestUIOpenEvent/CloseEvent)
+- ✅ OverlayAtlas system for large UI panels separate from UIAtlas
+- ✅ Semi-transparent overlay background for visual clarity
+- ✅ Integration with existing GameplayScene and interaction system
+
+**✅ Enhanced Input Handling:**
+- ✅ ESC key and gamepad B button support for closing chest UI
+- ✅ Input state tracking prevents rapid-fire input processing
+- ✅ Clean separation between chest UI input and menu navigation
+- ✅ Proper key press detection (not hold) for responsive UI
+
+**✅ Content Pipeline Integration:**
+- ✅ overlay-atlas-definition.xml configuration
+- ✅ PrisonBreakChestOverlay.png (48x48 chest overlay sprite)
+- ✅ EntityConfig.OverlayAtlas configuration
+- ✅ MGCB content build integration
+
+#### 🚧 3.2 Inventory Transfer Interface (Still Needed)
+
+**Modal inventory management interface (not yet implemented):**
 
 ### Phase 4: Inventory UI System
 
@@ -298,8 +325,9 @@ public struct InventoryUIComponent
 7. ✅ **Create basic chest entities** - Static containers for testing - COMPLETED
 8. ✅ **Entity factory methods** - CreateItemAtPosition, CreateChest - COMPLETED
 9. ✅ **Item pickup functionality** - Full world→inventory transfer - COMPLETED
-10. 🚧 **Build InventoryUIScene** - Modal overlay for chest management
-11. 🚧 **Integration testing** - Full pickup/drop/transfer workflow for chests
+10. ✅ **Build Chest UI Overlay System** - Modal overlay with proper input handling - COMPLETED
+11. 🚧 **Build Inventory Transfer Interface** - Item management within chest overlay
+12. 🚧 **Integration testing** - Full pickup/drop/transfer workflow for chests
 
 ## Key Design Principles
 

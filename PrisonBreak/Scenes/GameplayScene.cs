@@ -22,6 +22,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private InventorySystem _inventorySystem;
     private InventoryUIRenderSystem _inventoryUIRenderSystem;
     private InteractionSystem _interactionSystem;
+    private ChestUIRenderSystem _chestUIRenderSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -30,6 +31,14 @@ public class GameplayScene : Scene, ITransitionDataReceiver
 
     // Data from start menu
     private GameStartData? _gameStartData;
+    
+    // Chest UI state
+    private bool _isChestUIOpen = false;
+    private Entity _currentChestEntity = null;
+    
+    // Input state tracking
+    private KeyboardState _previousKeyboardState;
+    private GamePadState _previousGamepadState;
 
     public GameplayScene(EventBus eventBus) : base("Gameplay", eventBus)
     {
@@ -58,6 +67,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _inventorySystem = new InventorySystem();
         _inventoryUIRenderSystem = new InventoryUIRenderSystem();
         _interactionSystem = new InteractionSystem();
+        _chestUIRenderSystem = new ChestUIRenderSystem();
 
         // Set up system dependencies (same as Game1)
         _inputSystem.SetEntityManager(EntityManager);
@@ -82,6 +92,9 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _interactionSystem.SetEventBus(EventBus);
         _interactionSystem.SetInventorySystem(_inventorySystem);
 
+        _chestUIRenderSystem.SetEntityManager(EntityManager);
+        _chestUIRenderSystem.SetEventBus(EventBus);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -91,6 +104,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_inventorySystem);
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
+        SystemManager.AddSystem(_chestUIRenderSystem); // Render chest UI on top
     }
 
     protected override void LoadSceneContent()
@@ -108,15 +122,30 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         {
             Console.WriteLine("Failed to load tilemap!");
         }
+
+        // Set content for chest UI render system
+        _chestUIRenderSystem.SetContent(Content);
     }
 
     public override void Update(GameTime gameTime)
     {
-        // Handle escape key to return to menu (new functionality)
-        if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+        var currentKeyboardState = Keyboard.GetState();
+        var currentGamepadState = GamePad.GetState(PlayerIndex.One);
+
+        // Handle chest UI input if open
+        if (_isChestUIOpen)
         {
-            EventBus.Send(new SceneTransitionEvent(SceneType.Gameplay, SceneType.StartMenu));
-            return;
+            HandleChestUIInput(currentKeyboardState, currentGamepadState);
+        }
+        else
+        {
+            // Handle escape key to return to menu (only when chest UI is not open)
+            // Check for key press (was up, now down) to prevent repeated triggers
+            if (currentKeyboardState.IsKeyDown(Keys.Escape) && !_previousKeyboardState.IsKeyDown(Keys.Escape))
+            {
+                EventBus.Send(new SceneTransitionEvent(SceneType.Gameplay, SceneType.StartMenu));
+                return;
+            }
         }
 
         // Set tilemap for render system on first update (same as Game1)
@@ -134,8 +163,15 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             InitializeGame();
         }
 
-        // Call base update which runs SystemManager.Update
+        // TODO: Disable player input when chest UI is open by setting PlayerInputComponent.IsActive = false
+        // For now, chest UI input is handled separately in HandleChestUIInput()
+
+        // Call base update which runs SystemManager.Update (world continues running)
         base.Update(gameTime);
+        
+        // Store current input state for next frame
+        _previousKeyboardState = currentKeyboardState;
+        _previousGamepadState = currentGamepadState;
     }
 
     /// <summary>
@@ -242,6 +278,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<EntitySpawnEvent>(OnEntitySpawn);
         EventBus.Subscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
         EventBus.Subscribe<TeleportEvent>(OnTeleport);
+        
+        // Subscribe to chest UI events
+        EventBus.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
+        EventBus.Subscribe<ChestUICloseEvent>(OnChestUIClose);
 
         Console.WriteLine($"GameplayScene initialized with PlayerType: {playerType}");
     }
@@ -291,12 +331,45 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         Console.WriteLine($"Entity {teleportEvent.EntityId} teleported from {teleportEvent.FromPosition} to {teleportEvent.ToPosition}");
     }
 
+    private void OnChestUIOpen(ChestUIOpenEvent evt)
+    {
+        Console.WriteLine($"Opening chest UI for chest {evt.ChestEntity.Id}");
+        _isChestUIOpen = true;
+        _currentChestEntity = evt.ChestEntity;
+    }
+
+    private void OnChestUIClose(ChestUICloseEvent evt)
+    {
+        Console.WriteLine($"Closing chest UI for chest {evt.ChestEntity.Id}");
+        _isChestUIOpen = false;
+        _currentChestEntity = null;
+    }
+
+    private void HandleChestUIInput(KeyboardState keyboardState, GamePadState gamepadState)
+    {
+        // Close chest UI on Escape or gamepad B button (check for key press, not hold)
+        bool escapePressed = keyboardState.IsKeyDown(Keys.Escape) && !_previousKeyboardState.IsKeyDown(Keys.Escape);
+        bool bButtonPressed = gamepadState.Buttons.B == ButtonState.Pressed && _previousGamepadState.Buttons.B == ButtonState.Released;
+        
+        if (escapePressed || bButtonPressed)
+        {
+            if (_currentChestEntity != null)
+            {
+                EventBus.Send(new ChestUICloseEvent(_currentChestEntity, null));
+            }
+        }
+        
+        // TODO: Add item transfer input (arrow keys, mouse clicks)
+    }
+
     public override void OnExit()
     {
         // Clean up event subscriptions
         EventBus.Unsubscribe<EntitySpawnEvent>(OnEntitySpawn);
         EventBus.Unsubscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
         EventBus.Unsubscribe<TeleportEvent>(OnTeleport);
+        EventBus.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
+        EventBus.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
 
         base.OnExit();
     }

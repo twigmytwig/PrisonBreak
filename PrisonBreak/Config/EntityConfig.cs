@@ -34,4 +34,9 @@ public static class EntityConfig
     {
         public const string ConfigFile = "images/ui-atlas-definition.xml";
     }
+
+    public static class OverlayAtlas
+    {
+        public const string ConfigFile = "images/overlay-atlas-definition.xml";
+    }
 }

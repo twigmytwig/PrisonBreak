@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas>
+    <Texture>images/PrisonBreakChestOverlay</Texture>
+    <Regions>
+        <!-- 48x48 semi-transparent chest overlay background -->
+        <Region name="chest-overlay" x="0" y="0" width="48" height="48" />
+        
+        <!-- Future overlay panels can be added here:
+        <Region name="pause-menu-overlay" x="48" y="0" width="96" height="96" />
+        <Region name="settings-panel" x="0" y="48" width="128" height="80" />
+        <Region name="dialogue-box" x="48" y="48" width="200" height="60" />
+        -->
+    </Regions>
+    <Animations>
+        <!-- Static overlay sprites -->
+        <Animation name="chest-overlay" delay="1000">
+            <Frame region="chest-overlay" />
+        </Animation>
+        
+        <!-- Future overlay animations can be added here -->
+    </Animations>
+</TextureAtlas>

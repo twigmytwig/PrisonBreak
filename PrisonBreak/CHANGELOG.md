@@ -1,5 +1,105 @@
 # Prison Break Game - Major Release
 
+## 🎉 v0.1.4 - Chest UI System Implementation (2025)
+
+### ✨ NEW Features Added
+
+#### 🏺 NEW Chest UI System
+- **NEW ChestUIRenderSystem**: Complete chest overlay UI rendering system
+- **NEW Chest Overlay**: Modal overlay that appears when interacting with chests
+- **NEW Input Handling**: ESC key and gamepad B button to close chest UI
+- **NEW Atlas Architecture**: Separate OverlayAtlas for large UI panels (48x48+)
+- **NEW Scaling System**: 4x scaling (48x48 → 192x192) for better visibility
+- **NEW Event System**: ChestUIOpenEvent/CloseEvent for clean UI communication
+
+#### 🎮 Enhanced User Experience
+- **Modal Chest Interface**: Press E on chest to open, ESC/B to close
+- **Visual Feedback**: Large, clear chest overlay with semi-transparent background
+- **Input Isolation**: Proper key press detection prevents accidental menu transitions
+- **Clean UI Design**: Removed X button in favor of keyboard/gamepad controls
+
+#### 🏗️ Technical Architecture
+- **NEW OverlayAtlas System**: Dedicated texture atlas for large UI overlays
+- **Input State Tracking**: Previous frame state prevents rapid-fire input processing
+- **Event-Driven UI**: Clean separation between UI rendering and game logic
+- **Scene Integration**: Chest UI seamlessly integrates with GameplayScene
+
+### 🏗️ Technical Implementation
+
+#### NEW Systems Added
+```csharp
+// Complete chest UI overlay system
+ChestUIRenderSystem {
+    DrawChestUIOverlay()         // Renders scaled chest overlay
+    OnChestUIOpen()             // Handle chest opening events
+    OnChestUIClose()            // Handle chest closing events
+    LoadUIAtlases()             // Separate UI and overlay atlas loading
+}
+```
+
+#### Enhanced Input Architecture
+```csharp
+// Improved input handling with state tracking
+GameplayScene {
+    HandleChestUIInput()        // NEW dedicated chest UI input processing
+    // Key press detection (not hold) for clean UI interactions
+    // Gamepad B button support for console-style controls
+    // Input state isolation between chest UI and menu navigation
+}
+```
+
+#### NEW Content Architecture
+```csharp
+// Enhanced atlas system for different UI scales
+EntityConfig {
+    UIAtlas                     // 16x16 UI elements (existing)
+    OverlayAtlas               // 48x48+ overlay panels (NEW)
+}
+```
+
+### 📁 NEW Files Added
+```
+Content/images/
+├── overlay-atlas-definition.xml     // NEW overlay atlas configuration
+├── PrisonBreakChestOverlay.png     // NEW 48x48 chest overlay sprite
+
+ECS/Systems/
+└── ChestUIRenderSystem.cs          // NEW complete chest UI rendering system
+
+Config/
+└── EntityConfig.cs                 // Enhanced with OverlayAtlas configuration
+```
+
+### 🎮 User Experience
+
+#### Chest Interaction Flow
+1. **Approach Chest**: Walk near any chest entity in the game world
+2. **Open Chest**: Press E (keyboard) or X button (gamepad) to interact
+3. **View Interface**: Large chest overlay appears with semi-transparent background
+4. **Close Interface**: Press ESC (keyboard) or B button (gamepad) to close
+5. **Return to Game**: World simulation continues seamlessly
+
+#### Input Controls
+- **Open Chest**: E key or X button (existing interaction system)
+- **Close Chest**: ESC key or B button (NEW chest-specific controls)
+- **Menu Navigation**: ESC only works for menu when chest UI is closed
+
+### 🚀 Architecture Improvements
+
+#### Clean Atlas Separation
+- **UIAtlas**: Small UI elements (16x16) for buttons, icons, slots
+- **OverlayAtlas**: Large UI panels (48x48+) for modals, overlays, screens
+- **Scalable Design**: 4x scaling maintains pixel-perfect appearance
+- **Future-Ready**: Architecture supports additional overlay types
+
+#### Event-Driven UI
+- **ChestUIOpenEvent**: Triggered by InteractionSystem when chest is opened
+- **ChestUICloseEvent**: Triggered by input handling when chest is closed
+- **Decoupled Systems**: UI rendering completely separate from interaction logic
+- **State Management**: Clean UI state tracking in GameplayScene
+
+---
+
 ## 🎉 v0.1.3 - Interaction System Implementation (2025)
 
 ### ✨ NEW Features Added
