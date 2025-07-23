@@ -219,6 +219,9 @@ public class ComponentEntityManager
         var inventory = new InventoryComponent(playerTypeComponent.InventorySlots);
         entity.AddComponent(inventory);
 
+        // Note: Starting items for cop players will be added after entity creation
+        // to ensure proper event handling and UI updates
+
         // Debug
         if (EntityConfig.Player.DebugMode)
         {
@@ -280,7 +283,15 @@ public class ComponentEntityManager
 
         // Cop-specific components
         entity.AddComponent(new CopTag(entity.Id));
-        entity.AddComponent(new PlayerTypeComponent(PlayerType.Cop));
+        var copPlayerTypeComponent = new PlayerTypeComponent(PlayerType.Cop);
+        entity.AddComponent(copPlayerTypeComponent);
+
+        // Add inventory to cop (like players have)
+        var inventory = new InventoryComponent(copPlayerTypeComponent.InventorySlots);
+        entity.AddComponent(inventory);
+
+        // Note: AI cops get starting key items added after creation via InventorySystem
+        // to ensure proper event handling (even though they don't have UI)
 
         // Debug
         if (EntityConfig.Cop.DebugMode)
@@ -375,5 +386,60 @@ public class ComponentEntityManager
         }
 
         Console.WriteLine($"Created inventory UI for Player {playerId} with {playerType.InventorySlots} slots");
+    }
+
+    /// <summary>
+    /// Creates an item entity from the item database
+    /// </summary>
+    public Entity CreateItem(string itemId)
+    {
+        if (_uiAtlas == null)
+        {
+            throw new InvalidOperationException("EntityManager must be initialized before creating items");
+        }
+
+        var itemDefinition = ItemDatabase.GetItem(itemId);
+        if (itemDefinition == null)
+        {
+            throw new ArgumentException($"Item '{itemId}' not found in ItemDatabase");
+        }
+
+        var item = itemDefinition.Value;
+        var entity = CreateEntity();
+
+        // Add ItemComponent with data from database
+        entity.AddComponent(new ItemComponent
+        {
+            ItemName = item.ItemName,
+            ItemType = item.ItemType,
+            IsStackable = item.IsStackable,
+            StackSize = item.StackSize
+        });
+
+        // Add sprite from UI atlas
+        try
+        {
+            var sprite = _uiAtlas.CreateAnimatedSprite(item.AtlasRegionName);
+            entity.AddComponent(new SpriteComponent(sprite));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Could not load sprite '{item.AtlasRegionName}' for item '{itemId}': {ex.Message}");
+            throw;
+        }
+
+        // Items don't need transform by default (they're stored in inventory)
+        // Transform will be added when item is dropped/placed in world
+
+        Console.WriteLine($"Created item: {item.ItemName} (ID: {itemId})");
+        return entity;
+    }
+
+    /// <summary>
+    /// Creates a key item entity
+    /// </summary>
+    public Entity CreateKey()
+    {
+        return CreateItem("key");
     }
 }

@@ -176,12 +176,50 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
         EntityManager.CreateInventoryUIForPlayer(playerEntity, true, screenHeight);
 
+        // Give cop players their starting key item (after UI is created for proper event handling)
+        if (playerType == PlayerType.Cop)
+        {
+            try
+            {
+                var keyItem = EntityManager.CreateKey();
+                bool keyAdded = _inventorySystem.TryAddItem(playerEntity, keyItem);
+                if (keyAdded)
+                {
+                    Console.WriteLine($"Human cop player {playerEntity.Id} received starting key");
+                }
+                else
+                {
+                    Console.WriteLine($"Warning: Could not add starting key to cop player {playerEntity.Id} inventory");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not create starting key for cop player: {ex.Message}");
+            }
+        }
+
         // Create cop entities (same as Game1)
         Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
         Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
 
         var cop1 = EntityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
         var cop2 = EntityManager.CreateCop(copStartPos2, AIBehavior.Wander);
+
+        // Give AI cops their starting key items
+        try
+        {
+            var keyItem1 = EntityManager.CreateKey();
+            var keyItem2 = EntityManager.CreateKey();
+            
+            _inventorySystem.TryAddItem(cop1, keyItem1);
+            _inventorySystem.TryAddItem(cop2, keyItem2);
+            
+            Console.WriteLine($"AI cops {cop1.Id} and {cop2.Id} received starting keys");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Could not create starting keys for AI cops: {ex.Message}");
+        }
 
         // Add bounds constraints to all entities (same as Game1)
         EntityManager.AddBoundsConstraint(playerEntity, _roomBounds, false); // Player clamps
