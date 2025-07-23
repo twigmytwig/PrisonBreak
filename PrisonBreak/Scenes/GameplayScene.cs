@@ -21,6 +21,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private ComponentRenderSystem _renderSystem;
     private InventorySystem _inventorySystem;
     private InventoryUIRenderSystem _inventoryUIRenderSystem;
+    private InteractionSystem _interactionSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -56,6 +57,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _renderSystem = new ComponentRenderSystem();
         _inventorySystem = new InventorySystem();
         _inventoryUIRenderSystem = new InventoryUIRenderSystem();
+        _interactionSystem = new InteractionSystem();
 
         // Set up system dependencies (same as Game1)
         _inputSystem.SetEntityManager(EntityManager);
@@ -76,8 +78,13 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _inventoryUIRenderSystem.SetEntityManager(EntityManager);
         _inventoryUIRenderSystem.SetEventBus(EventBus);
 
+        _interactionSystem.SetEntityManager(EntityManager);
+        _interactionSystem.SetEventBus(EventBus);
+        _interactionSystem.SetInventorySystem(_inventorySystem);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
+        SystemManager.AddSystem(_interactionSystem);
         SystemManager.AddSystem(_animationSystem);
         SystemManager.AddSystem(_movementSystem);
         SystemManager.AddSystem(_collisionSystem);
@@ -226,6 +233,9 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EntityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
         EntityManager.AddBoundsConstraint(cop2, _roomBounds, true);
 
+        // Create test items and chests for interaction system testing
+        CreateTestItems();
+
         _gameInitialized = true;
 
         // Subscribe to events for debugging (same as Game1)
@@ -234,6 +244,35 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<TeleportEvent>(OnTeleport);
 
         Console.WriteLine($"GameplayScene initialized with PlayerType: {playerType}");
+    }
+
+    /// <summary>
+    /// Create test items and chests for testing the interaction system
+    /// </summary>
+    private void CreateTestItems()
+    {
+        try
+        {
+            // Create a test item near the player for pickup testing
+            Vector2 testItemPos = new Vector2(_roomBounds.Left + 200, _roomBounds.Top + 100);
+            var testItem = EntityManager.CreateItemAtPosition("key", testItemPos);
+            Console.WriteLine($"Created test key item at {testItemPos}");
+
+            // Create a test chest with some items
+            Vector2 testChestPos = new Vector2(_roomBounds.Right - 200, _roomBounds.Top + 150);
+            string[] chestItems = { "key" }; // Put a key in the chest
+            var testChest = EntityManager.CreateChest(testChestPos, chestItems);
+            Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items");
+
+            // Create another test item on the opposite side
+            Vector2 testItemPos2 = new Vector2(_roomBounds.Right - 150, _roomBounds.Bottom - 100);
+            var testItem2 = EntityManager.CreateItemAtPosition("key", testItemPos2);
+            Console.WriteLine($"Created second test key item at {testItemPos2}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: Could not create test items/chests: {ex.Message}");
+        }
     }
 
     // Event handlers for debugging (same as Game1)

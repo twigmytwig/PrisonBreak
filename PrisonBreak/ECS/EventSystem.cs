@@ -194,3 +194,27 @@ public struct InventoryFullEvent
         AttemptedItem = attemptedItem;
     }
 }
+
+public struct InteractionInputEvent
+{
+    public int EntityId;
+    
+    public InteractionInputEvent(int entityId)
+    {
+        EntityId = entityId;
+    }
+}
+
+public struct InteractionEvent
+{
+    public int PlayerId;
+    public Entity InteractableEntity;
+    public string InteractionType;
+    
+    public InteractionEvent(int playerId, Entity interactableEntity, string interactionType)
+    {
+        PlayerId = playerId;
+        InteractableEntity = interactableEntity;
+        InteractionType = interactionType;
+    }
+}

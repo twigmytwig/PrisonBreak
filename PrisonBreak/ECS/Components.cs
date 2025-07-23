@@ -276,3 +276,35 @@ public struct InventorySlotUIComponent
         IsLocalPlayer = isLocalPlayer;
     }
 }
+
+public struct InteractableComponent
+{
+    public string InteractionType;    // "chest", "pickup", "door"
+    public float InteractionRange;    // Distance for interaction
+    public bool IsActive;            // Can be interacted with
+    public string DisplayText;       // "Press E to open chest"
+
+    public InteractableComponent(string interactionType, float interactionRange = 64f, string displayText = null)
+    {
+        InteractionType = interactionType;
+        InteractionRange = interactionRange;
+        IsActive = true;
+        DisplayText = displayText ?? $"Press E to {interactionType}";
+    }
+}
+
+public struct ContainerComponent
+{
+    public int MaxItems;
+    public Entity[] ContainedItems;
+    public int ItemCount;
+    public string ContainerType;     // "chest", "locker", "crate"
+
+    public ContainerComponent(int maxItems, string containerType = "chest")
+    {
+        MaxItems = maxItems;
+        ContainedItems = new Entity[maxItems];
+        ItemCount = 0;
+        ContainerType = containerType;
+    }
+}

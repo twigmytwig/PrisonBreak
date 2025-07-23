@@ -442,4 +442,101 @@ public class ComponentEntityManager
     {
         return CreateItem("key");
     }
+
+    /// <summary>
+    /// Creates an item entity at a specific world position for pickup
+    /// </summary>
+    public Entity CreateItemAtPosition(string itemId, Vector2 position)
+    {
+        var itemEntity = CreateItem(itemId);
+        
+        // Add transform component for world placement (make items 2x larger)
+        itemEntity.AddComponent(new TransformComponent(position, new Vector2(2.0f, 2.0f)));
+        
+        // Make item interactable for pickup (increase interaction range)
+        var itemComponent = itemEntity.GetComponent<ItemComponent>();
+        itemEntity.AddComponent(new InteractableComponent(
+            "pickup", 
+            64f, // Increased from 48f
+            $"Press E to pick up {itemComponent.ItemName}"
+        ));
+        
+        return itemEntity;
+    }
+
+    /// <summary>
+    /// Creates a chest entity with optional starting items
+    /// </summary>
+    public Entity CreateChest(Vector2 position, string[] itemIds = null)
+    {
+        if (_atlas == null)
+        {
+            throw new InvalidOperationException("EntityManager must be initialized before creating entities");
+        }
+
+        var entity = CreateEntity();
+
+        // Transform
+        entity.AddComponent(new TransformComponent(position, Vector2.One));
+
+        // Sprite - try to get chest sprite from UI atlas first, then main atlas
+        AnimatedSprite chestSprite;
+        try
+        {
+            chestSprite = _uiAtlas.CreateAnimatedSprite("chest"); // Chest sprite is in UI atlas
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: 'chest' sprite not found in UI atlas: {ex.Message}. Trying main atlas.");
+            try
+            {
+                chestSprite = _atlas.CreateAnimatedSprite("chest"); // Try main atlas as fallback
+            }
+            catch (Exception ex2)
+            {
+                Console.WriteLine($"Warning: 'chest' sprite not found in main atlas either: {ex2.Message}. Using fallback.");
+                chestSprite = _atlas.CreateAnimatedSprite("prisoner-animation"); // Final fallback
+            }
+        }
+        entity.AddComponent(new SpriteComponent(chestSprite));
+
+        // Make chest interactable
+        entity.AddComponent(new InteractableComponent(
+            "chest",
+            64f,
+            "Press E to open chest"
+        ));
+
+        // Add container component
+        var container = new ContainerComponent(10, "chest"); // 10 slot chest
+        entity.AddComponent(container);
+
+        // Populate with initial items if provided
+        if (itemIds != null)
+        {
+            for (int i = 0; i < Math.Min(itemIds.Length, container.MaxItems); i++)
+            {
+                try
+                {
+                    var item = CreateItem(itemIds[i]);
+                    container.ContainedItems[i] = item;
+                    container.ItemCount++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Could not add item '{itemIds[i]}' to chest: {ex.Message}");
+                }
+            }
+        }
+
+        // Add collision for chest (optional - chests can be walked through or solid)
+        var collider = new RectangleCollider(
+            (int)position.X, 
+            (int)position.Y, 
+            32, 32); // Standard chest size
+        entity.AddComponent(new CollisionComponent(collider) { IsSolid = true });
+
+        _eventBus.Send(new EntitySpawnEvent(entity.Id, position, "Chest"));
+        return entity;
+    }
 }

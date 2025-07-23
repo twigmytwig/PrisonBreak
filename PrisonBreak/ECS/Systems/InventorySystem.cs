@@ -77,6 +77,7 @@ public class InventorySystem : IGameSystem
                 if (playerEntity.HasComponent<PlayerTag>())
                 {
                     var playerTag = playerEntity.GetComponent<PlayerTag>();
+                    Console.WriteLine($"[DEBUG] InventorySystem: Sending ItemAddedEvent - PlayerId: {playerTag.PlayerId}, ItemEntity: {itemEntity.Id}, SlotIndex: {i}");
                     _eventBus?.Send(new ItemAddedEvent(playerTag.PlayerId, itemEntity, i));
                 }
                 return true;

@@ -8,6 +8,9 @@
         <!-- Key item sprite at position (0,16) as specified by user -->
         <Region name="key" x="16" y="0" width="16" height="16" />
         
+        <!-- Chest sprite -->
+        <Region name="chest" x="32" y="0" width="16" height="16" />
+        
         <!-- Add more 16x16 UI sprites here as you create them -->
         <!-- Example for future sprites:
         <Region name="button-normal" x="16" y="0" width="16" height="16" />
@@ -24,6 +27,11 @@
         <!-- Key item animation -->
         <Animation name="key" delay="1000">
             <Frame region="key" />
+        </Animation>
+        
+        <!-- Chest animation -->
+        <Animation name="chest" delay="1000">
+            <Frame region="chest" />
         </Animation>
         
         <!-- Add UI animations here when needed -->
