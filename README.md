@@ -2,7 +2,7 @@
 
 A 2D prison escape game built with MonoGame, featuring a modern **Scene-Based + Entity Component System (ECS)** architecture for high performance and multiplayer readiness.
 
-## 🚀 Latest Major Update: Scene Management System (v2.0.0)
+## 🚀 Latest Major Update: Scene Management System (v0.1.15)
 
 This project has evolved through **two major architectural improvements**:
 
@@ -12,7 +12,7 @@ This project has evolved through **two major architectural improvements**:
 The combined architecture provides:
 
 - ✅ **Extreme Flexibility** - Mix any behaviors by combining components
-- ✅ **High Performance** - Only process entities that need processing  
+- ✅ **High Performance** - Only process entities that need processing
 - ✅ **Perfect Scalability** - Easily add new components and systems
 - ✅ **Multiplayer Ready** - Pure data components sync easily
 - ✅ **Testable** - Systems can be tested independently
@@ -26,7 +26,7 @@ Players control prisoners trying to escape from a prison while avoiding AI-contr
 
 - **Professional Start Menu** - Player type selection before gameplay
 - **Multi-player support** - Each player controls their own prisoner or cop
-- **AI-driven enemies** - Cops with various behavior patterns  
+- **AI-driven enemies** - Cops with various behavior patterns
 - **Component-based entities** - Mix and match behaviors
 - **Player type system** - Choose between Prisoner and Cop with distinct abilities
 - **Inventory system** - Player inventories with type-specific capacities
@@ -57,7 +57,7 @@ SceneManager
 │   ├── Menu Entities (MenuItemComponent, TextComponent)
 │   ├── MenuInputSystem (navigation)
 │   └── MenuRenderSystem (UI rendering)
-└── GameplayScene  
+└── GameplayScene
     ├── Game Entities (Player, Cops, etc.)
     ├── ComponentInputSystem
     ├── ComponentMovementSystem
@@ -87,29 +87,31 @@ Entity (ID + Components)
 
 ### Core Components
 
-| Component | Purpose | Data |
-|-----------|---------|------|
-| `TransformComponent` | Position, rotation, scale | `Vector2 Position`, `float Rotation`, `Vector2 Scale` |
-| `SpriteComponent` | Visual representation | `AnimatedSprite`, `bool Visible`, `Color Tint` |
-| `MovementComponent` | Physics and movement | `Vector2 Velocity`, `float MaxSpeed`, `float Friction` |
-| `CollisionComponent` | Collision detection | `RectangleCollider`, `bool IsSolid`, `string Layer` |
-| `PlayerInputComponent` | Input handling | `PlayerIndex`, input state |
-| `AIComponent` | AI behaviors | `AIBehavior`, state machine data |
-| `PlayerTypeComponent` | Player role & attributes | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName`, `int InventorySlots` |
-| `InventoryComponent` | Item storage | `int MaxSlots`, `Entity[] Items`, `int ItemCount` |
-| `ItemComponent` | Item properties | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize` |
-| `MenuItemComponent` | **NEW** UI elements | `bool IsSelected`, `Color BackgroundColor`, `int Width`, `int Height` |
-| `TextComponent` | **NEW** Text rendering | `string Text`, `SpriteFont Font`, `Color Color`, `TextAlignment` |
+| Component              | Purpose                   | Data                                                                                     |
+| ---------------------- | ------------------------- | ---------------------------------------------------------------------------------------- |
+| `TransformComponent`   | Position, rotation, scale | `Vector2 Position`, `float Rotation`, `Vector2 Scale`                                    |
+| `SpriteComponent`      | Visual representation     | `AnimatedSprite`, `bool Visible`, `Color Tint`                                           |
+| `MovementComponent`    | Physics and movement      | `Vector2 Velocity`, `float MaxSpeed`, `float Friction`                                   |
+| `CollisionComponent`   | Collision detection       | `RectangleCollider`, `bool IsSolid`, `string Layer`                                      |
+| `PlayerInputComponent` | Input handling            | `PlayerIndex`, input state                                                               |
+| `AIComponent`          | AI behaviors              | `AIBehavior`, state machine data                                                         |
+| `PlayerTypeComponent`  | Player role & attributes  | `PlayerType Type`, `float SpeedMultiplier`, `string AnimationName`, `int InventorySlots` |
+| `InventoryComponent`   | Item storage              | `int MaxSlots`, `Entity[] Items`, `int ItemCount`                                        |
+| `ItemComponent`        | Item properties           | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize`                |
+| `MenuItemComponent`    | **NEW** UI elements       | `bool IsSelected`, `Color BackgroundColor`, `int Width`, `int Height`                    |
+| `TextComponent`        | **NEW** Text rendering    | `string Text`, `SpriteFont Font`, `Color Color`, `TextAlignment`                         |
 
 ### System Execution Order
 
 #### StartMenuScene
+
 1. **MenuInputSystem** - Menu navigation (arrows, enter, escape)
 2. **MenuRenderSystem** - UI rendering with fonts
 
-#### GameplayScene  
+#### GameplayScene
+
 1. **ComponentInputSystem** - Captures input, sends events
-2. **ComponentMovementSystem** - Processes movement events, applies physics  
+2. **ComponentMovementSystem** - Processes movement events, applies physics
 3. **ComponentCollisionSystem** - Detects collisions, sends collision events
 4. **InventorySystem** - Manages player inventories and item interactions
 5. **ComponentRenderSystem** - Draws everything
@@ -119,19 +121,22 @@ Entity (ID + Components)
 The game features a flexible player type system that differentiates between prisoners and cops:
 
 ### **Player Types**
+
 - **Prisoners** - Human-controlled players trying to escape
+
   - Uses "prisoner-animation" sprite
   - Standard movement speed (1.0x multiplier)
   - 3 inventory slots
   - Targeted by AI cops
 
 - **Cops** - Can be AI or human-controlled
-  - Uses "cop-animation" sprite  
+  - Uses "cop-animation" sprite
   - Faster movement speed (1.2x multiplier)
   - 4 inventory slots (higher capacity)
   - AI cops automatically target prisoners
 
 ### **PlayerTypeComponent**
+
 ```csharp
 public struct PlayerTypeComponent
 {
@@ -143,6 +148,7 @@ public struct PlayerTypeComponent
 ```
 
 ### **Creating Entities with Player Types**
+
 ```csharp
 // Create a prisoner (human-controlled)
 var prisoner = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
@@ -155,12 +161,15 @@ var aiCop = entityManager.CreateCop(position, AIBehavior.Chase);
 ```
 
 ### **AI Behavior**
+
 - **Intelligent Targeting**: Cop AIs automatically find and chase the nearest prisoner
 - **Type-Aware**: Cops ignore other cops and only pursue prisoners
 - **Speed Advantage**: Cops move 20% faster than prisoners for balanced gameplay
 
 ### **Future Expansion**
+
 The system is designed for easy expansion:
+
 - Additional player types (guards, special prisoners, etc.)
 - Custom animations per type
 - Type-specific abilities and permissions
@@ -238,6 +247,7 @@ dotnet run --project PrisonBreak/
 The ECS architecture makes it trivial to create new entity types by combining components:
 
 ### Moving Pickup
+
 ```csharp
 var pickup = entityManager.CreateEntity();
 pickup.AddComponent(new TransformComponent(position));
@@ -248,6 +258,7 @@ pickup.AddComponent(new AIComponent(AIBehavior.Wander));
 ```
 
 ### Player-Controlled Cop (Multiplayer)
+
 ```csharp
 // Easy way using the factory method
 var playerCop = entityManager.CreatePlayer(position, PlayerIndex.Two, PlayerType.Cop);
@@ -262,6 +273,7 @@ customCop.AddComponent(new MovementComponent(100f));
 ```
 
 ### Invisible Ghost Enemy
+
 ```csharp
 var ghost = entityManager.CreateEntity();
 ghost.AddComponent(new TransformComponent(position));
@@ -275,12 +287,14 @@ ghost.AddComponent(new CopTag(ghost.Id));
 ## 🎮 Controls
 
 ### Start Menu
+
 - **Up/Down Arrows** - Navigate menu options
 - **Left/Right Arrows** - Change player type when "Start Game" is selected
 - **Enter** - Confirm selection / Start game
 - **ESC** - Exit game
 
 ### Gameplay
+
 - **WASD** - Player 1 movement
 - **Arrow Keys** - Player 2 movement (if available)
 - **ESC** - Return to start menu
@@ -290,12 +304,12 @@ ghost.AddComponent(new CopTag(ghost.Id));
 
 This project previously used an inheritance-based entity system. The migration provides:
 
-| Feature | Before (Inheritance) | After (Components) |
-|---------|---------------------|-------------------|
-| **Memory Usage** | Higher (all entities have all fields) | Lower (only needed components) |
-| **Update Performance** | Slower (check all entities) | Faster (query only relevant) |
-| **Flexibility** | Low (fixed hierarchy) | High (mix any components) |
-| **Scalability** | Poor (becomes unwieldy) | Excellent (linear scaling) |
+| Feature                | Before (Inheritance)                  | After (Components)             |
+| ---------------------- | ------------------------------------- | ------------------------------ |
+| **Memory Usage**       | Higher (all entities have all fields) | Lower (only needed components) |
+| **Update Performance** | Slower (check all entities)           | Faster (query only relevant)   |
+| **Flexibility**        | Low (fixed hierarchy)                 | High (mix any components)      |
+| **Scalability**        | Poor (becomes unwieldy)               | Excellent (linear scaling)     |
 
 ## 📚 Documentation
 
@@ -309,6 +323,7 @@ This project previously used an inheritance-based entity system. The migration p
 This project features an **efficient tile-based collision system** that provides smooth wall collision and high performance:
 
 ### **🎯 Key Features**
+
 - **Tile-based collision map** - O(1) collision detection vs O(n) entity checks
 - **Smooth wall sliding** - Natural movement along wall edges without getting stuck
 - **Adjacent wall support** - Perfect handling of connected wall segments
@@ -316,6 +331,7 @@ This project features an **efficient tile-based collision system** that provides
 - **Predictive collision** - Prevents clipping by checking movement before execution
 
 ### **🔧 How It Works**
+
 1. **Collision Map Generation** - Creates 2D boolean array from tilemap data
 2. **Grid-Based Detection** - Converts world positions to tile coordinates for instant lookup
 3. **Swept Movement** - Tests movement path in small steps to find exact collision points
@@ -333,6 +349,7 @@ int[] solidTileIds = { 2, 3, 4, 5 }; // Add new tile IDs here
 ```
 
 Then update your tilemap XML file to use the new tile IDs:
+
 ```xml
 <Tiles>
     00 00 04 04 04 00 00  <!-- 04 = tables -->
@@ -343,13 +360,13 @@ Then update your tilemap XML file to use the new tile IDs:
 
 ### **📈 Performance Comparison**
 
-| Feature | Old System (Entity-based) | New System (Tile-based) |
-|---------|---------------------------|-------------------------|
-| **Collision Detection** | O(n) per entity per wall | O(1) tile lookup |
-| **Memory Usage** | High (entity per tile) | Low (2D boolean array) |
-| **Adjacent Walls** | Buggy collision confusion | Perfect seamless handling |
-| **Scalability** | Degrades with wall count | Constant performance |
-| **Wall Sliding** | Harsh, gets stuck | Smooth, natural movement |
+| Feature                 | Old System (Entity-based) | New System (Tile-based)   |
+| ----------------------- | ------------------------- | ------------------------- |
+| **Collision Detection** | O(n) per entity per wall  | O(1) tile lookup          |
+| **Memory Usage**        | High (entity per tile)    | Low (2D boolean array)    |
+| **Adjacent Walls**      | Buggy collision confusion | Perfect seamless handling |
+| **Scalability**         | Degrades with wall count  | Constant performance      |
+| **Wall Sliding**        | Harsh, gets stuck         | Smooth, natural movement  |
 
 ## 🚀 Performance Benefits
 
@@ -381,15 +398,19 @@ public NetworkEntityData SerializeEntity(Entity entity)
 ## 🔍 Development Tools
 
 ### Entity Inspector
+
 Debug any entity to see its components:
+
 ```csharp
 entity.DebugComponents(); // Prints all components
 ```
 
 ### System Performance Profiling
+
 Built-in performance tracking for each system.
 
 ### Component Statistics
+
 Monitor entity composition in real-time.
 
 ## 🤝 Contributing
