@@ -1,5 +1,5 @@
+using System;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 using PrisonBreak.Core.Graphics;
 using PrisonBreak.Core.Physics;
 
@@ -203,14 +203,21 @@ public struct PlayerTypeComponent
     public PlayerType Type;
     public float SpeedMultiplier;    // Cops might be faster
     public string AnimationName;     // Animation to use for this player type
-    
+    public int InventorySlots => Type switch
+    {
+        PlayerType.Prisoner => 3,
+        PlayerType.Cop => 4,
+        _ => 3
+    };
+
     public PlayerTypeComponent(PlayerType type, string animationName = null)
     {
         Type = type;
         SpeedMultiplier = type == PlayerType.Cop ? 1.2f : 1.0f;
         AnimationName = animationName ?? GetDefaultAnimation(type);
+
     }
-    
+
     private static string GetDefaultAnimation(PlayerType type)
     {
         return type switch
@@ -225,5 +232,79 @@ public struct PlayerTypeComponent
 public enum PlayerType
 {
     Prisoner,
-    Cop
+    Cop,
+}
+
+public struct InventoryComponent
+{
+    public int MaxSlots;
+    public Entity[] Items;
+    public int ItemCount;
+    
+    public InventoryComponent(int maxSlots)
+    {
+        MaxSlots = maxSlots;
+        Items = new Entity[maxSlots];
+        ItemCount = 0;
+        
+        // Items array is already initialized with null values by default
+    }
+}
+
+public struct ItemComponent
+{
+    public string ItemName;
+    public string ItemType; // TODO: this should be not a string probably
+    public bool IsStackable;
+    public int StackSize;
+}
+
+public struct InventorySlotUIComponent
+{
+    public int PlayerId;           // Unique per player (1, 2, 3, etc.)
+    public int SlotIndex;          // Slot position (0, 1, 2, etc.)
+    public Entity ContainedItem;   // Current item in slot (null if empty)
+    public bool IsVisible;         // Show/hide this slot
+    public bool IsLocalPlayer;     // For UI positioning differences
+
+    public InventorySlotUIComponent(int playerId, int slotIndex, bool isLocalPlayer = true)
+    {
+        PlayerId = playerId;
+        SlotIndex = slotIndex;
+        ContainedItem = null;
+        IsVisible = true;
+        IsLocalPlayer = isLocalPlayer;
+    }
+}
+
+public struct InteractableComponent
+{
+    public string InteractionType;    // "chest", "pickup", "door"
+    public float InteractionRange;    // Distance for interaction
+    public bool IsActive;            // Can be interacted with
+    public string DisplayText;       // "Press E to open chest"
+
+    public InteractableComponent(string interactionType, float interactionRange = 64f, string displayText = null)
+    {
+        InteractionType = interactionType;
+        InteractionRange = interactionRange;
+        IsActive = true;
+        DisplayText = displayText ?? $"Press E to {interactionType}";
+    }
+}
+
+public struct ContainerComponent
+{
+    public int MaxItems;
+    public Entity[] ContainedItems;
+    public int ItemCount;
+    public string ContainerType;     // "chest", "locker", "crate"
+
+    public ContainerComponent(int maxItems, string containerType = "chest")
+    {
+        MaxItems = maxItems;
+        ContainedItems = new Entity[maxItems];
+        ItemCount = 0;
+        ContainerType = containerType;
+    }
 }

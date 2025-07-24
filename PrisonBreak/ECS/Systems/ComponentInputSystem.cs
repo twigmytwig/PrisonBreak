@@ -9,6 +9,8 @@ public class ComponentInputSystem : IGameSystem
 {
     private ComponentEntityManager _entityManager;
     private EventBus _eventBus;
+    private KeyboardState _previousKeyboard;
+    private GamePadState[] _previousGamePads;
     
     public void SetEntityManager(ComponentEntityManager entityManager)
     {
@@ -22,6 +24,12 @@ public class ComponentInputSystem : IGameSystem
     
     public void Initialize()
     {
+        _previousKeyboard = Keyboard.GetState();
+        _previousGamePads = new GamePadState[4];
+        for (int i = 0; i < 4; i++)
+        {
+            _previousGamePads[i] = GamePad.GetState((PlayerIndex)i);
+        }
     }
     
     public void Update(GameTime gameTime)
@@ -42,14 +50,21 @@ public class ComponentInputSystem : IGameSystem
             // Check keyboard input for this player
             if (input.PlayerIndex == PlayerIndex.One)
             {
-                CheckKeyboardInput(ref movementDirection, ref speedBoost);
+                CheckKeyboardInput(entity, ref movementDirection, ref speedBoost);
             }
             
             // Check gamepad input
-            CheckGamePadInput(input.PlayerIndex, ref movementDirection, ref speedBoost);
+            CheckGamePadInput(entity, input.PlayerIndex, ref movementDirection, ref speedBoost);
             
             // Always send input event for player entities (including when stopped)
             _eventBus.Send(new PlayerInputEvent(entity.Id, movementDirection, speedBoost));
+        }
+        
+        // Update previous input states at the end of the frame
+        _previousKeyboard = Keyboard.GetState();
+        for (int i = 0; i < 4; i++)
+        {
+            _previousGamePads[i] = GamePad.GetState((PlayerIndex)i);
         }
     }
     
@@ -62,31 +77,39 @@ public class ComponentInputSystem : IGameSystem
     {
     }
     
-    private void CheckKeyboardInput(ref Vector2 movement, ref bool speedBoost)
+    private void CheckKeyboardInput(Entity entity, ref Vector2 movement, ref bool speedBoost)
     {
-        if (Keyboard.GetState().IsKeyDown(Keys.Space))
+        var currentKeyboard = Keyboard.GetState();
+        
+        if (currentKeyboard.IsKeyDown(Keys.Space))
         {
             speedBoost = true;
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.W) || Keyboard.GetState().IsKeyDown(Keys.Up))
+        if (currentKeyboard.IsKeyDown(Keys.W) || currentKeyboard.IsKeyDown(Keys.Up))
         {
             movement.Y -= 1.0f;
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.S) || Keyboard.GetState().IsKeyDown(Keys.Down))
+        if (currentKeyboard.IsKeyDown(Keys.S) || currentKeyboard.IsKeyDown(Keys.Down))
         {
             movement.Y += 1.0f;
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.A) || Keyboard.GetState().IsKeyDown(Keys.Left))
+        if (currentKeyboard.IsKeyDown(Keys.A) || currentKeyboard.IsKeyDown(Keys.Left))
         {
             movement.X -= 1.0f;
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.D) || Keyboard.GetState().IsKeyDown(Keys.Right))
+        if (currentKeyboard.IsKeyDown(Keys.D) || currentKeyboard.IsKeyDown(Keys.Right))
         {
             movement.X += 1.0f;
+        }
+        
+        // Check for interaction input (E key press, not hold)
+        if (currentKeyboard.IsKeyDown(Keys.E) && !_previousKeyboard.IsKeyDown(Keys.E))
+        {
+            _eventBus.Send(new InteractionInputEvent(entity.Id));
         }
         
         // Normalize diagonal movement
@@ -96,9 +119,10 @@ public class ComponentInputSystem : IGameSystem
         }
     }
     
-    private void CheckGamePadInput(PlayerIndex playerIndex, ref Vector2 movement, ref bool speedBoost)
+    private void CheckGamePadInput(Entity entity, PlayerIndex playerIndex, ref Vector2 movement, ref bool speedBoost)
     {
         var gamePadState = GamePad.GetState(playerIndex);
+        var previousGamePad = _previousGamePads[(int)playerIndex];
 
         if (gamePadState.IsButtonDown(Buttons.A))
         {
@@ -108,6 +132,12 @@ public class ComponentInputSystem : IGameSystem
         else
         {
             GamePad.SetVibration(playerIndex, 0.0f, 0.0f);
+        }
+
+        // Check for interaction input (X button press, not hold)
+        if (gamePadState.IsButtonDown(Buttons.X) && !previousGamePad.IsButtonDown(Buttons.X))
+        {
+            _eventBus.Send(new InteractionInputEvent(entity.Id));
         }
 
         // Check thumbstick first (analog input has priority)

@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas>
+    <Texture>images/PrisonBreakUI</Texture>
+    <Regions>
+        <!-- Single 16x16 inventory slot sprite -->
+        <Region name="inventory-slot" x="0" y="0" width="16" height="16" />
+        
+        <!-- Key item sprite at position (0,16) as specified by user -->
+        <Region name="key" x="16" y="0" width="16" height="16" />
+        
+        <!-- Chest sprite -->
+        <Region name="chest" x="32" y="0" width="16" height="16" />
+        
+        <!-- New UI elements: X button, arrows -->
+        <Region name="ui-close-x" x="48" y="0" width="16" height="16" />
+        <Region name="ui-arrow-right" x="64" y="0" width="16" height="16" />
+        <Region name="ui-arrow-left" x="80" y="0" width="16" height="16" />
+        
+        <!-- Add more 16x16 UI sprites here as you create them -->
+    </Regions>
+    <Animations>
+        <!-- Static UI sprites - single frame animations -->
+        <Animation name="inventory-slot" delay="1000">
+            <Frame region="inventory-slot" />
+        </Animation>
+        
+        <!-- Key item animation -->
+        <Animation name="key" delay="1000">
+            <Frame region="key" />
+        </Animation>
+        
+        <!-- Chest animation -->
+        <Animation name="chest" delay="1000">
+            <Frame region="chest" />
+        </Animation>
+        
+        <!-- New UI element animations -->
+        <Animation name="ui-close-x" delay="1000">
+            <Frame region="ui-close-x" />
+        </Animation>
+        
+        <Animation name="ui-arrow-right" delay="1000">
+            <Frame region="ui-arrow-right" />
+        </Animation>
+        
+        <Animation name="ui-arrow-left" delay="1000">
+            <Frame region="ui-arrow-left" />
+        </Animation>
+        
+        <!-- Add UI animations here when needed -->
+        
+    </Animations>
+</TextureAtlas>

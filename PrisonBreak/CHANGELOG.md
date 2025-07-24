@@ -1,6 +1,343 @@
 # Prison Break Game - Major Release
 
-## 🎉 v2.0.0 - Scene-Based Architecture (2024)
+## 🎉 v0.1.5 - Complete Inventory Transfer System (2025)
+
+### ✨ NEW Features Added
+
+#### 🔄 NEW Inventory Transfer Interface
+- **NEW Slot Navigation**: Arrow keys/D-pad navigation between inventory slots
+- **NEW Inventory Switching**: Up/Down arrows to switch between player and chest inventories
+- **NEW Item Transfer**: Enter/A button to transfer items between inventories
+- **NEW Visual Highlighting**: Selected slot highlighted with yellow tint for clear feedback
+- **NEW Real-time Display**: Both player and chest inventories visible simultaneously in overlay
+
+#### 🎮 NEW Enhanced Input Controls
+- **NEW Arrow Key Navigation**: Left/Right to move between slots within current inventory
+- **NEW Up/Down Navigation**: Switch focus between player inventory and chest inventory  
+- **NEW Transfer Action**: Enter key or gamepad A button to move selected item
+- **NEW Visual Feedback**: Clear indication of which slot and inventory is currently selected
+
+#### 🔧 NEW Container Management System
+- **NEW InventorySystem Methods**: `TryTransferItemToContainer`, `TryTransferItemToPlayer`, `GetContainerItemAtSlot`
+- **NEW Transfer Events**: `ItemTransferEvent` and `InventorySlotSelectedEvent` for UI communication
+- **NEW State Management**: Proper slot selection tracking and inventory focus handling
+- **NEW Error Handling**: Graceful handling of full inventories and invalid transfers
+
+#### 🎯 NEW Interaction Detection Improvements
+- **NEW Sprite Center Calculation**: Accurate interaction detection using visual sprite centers
+- **NEW Scaled Entity Support**: Proper handling of scaled players (4x) and items (2x)
+- **NEW Position Accuracy**: Fixed offset issues where interaction zones were misaligned
+- **NEW Dynamic Sizing**: Automatic sprite size detection from texture regions
+
+### 🏗️ Technical Implementation
+
+#### NEW Systems Enhanced
+```csharp
+// NEW Enhanced InventorySystem methods
+public bool TryTransferItemToContainer(Entity playerEntity, Entity containerEntity, int playerSlotIndex)
+public bool TryTransferItemToPlayer(Entity containerEntity, Entity playerEntity, int containerSlotIndex)
+public Entity GetContainerItemAtSlot(Entity containerEntity, int slotIndex)
+
+// NEW ChestUIRenderSystem slot selection
+private int _selectedSlotIndex = 0;
+private bool _isPlayerInventorySelected = true;
+private void OnSlotSelected(InventorySlotSelectedEvent evt)
+
+// NEW GameplayScene input handling
+private void HandleSlotNavigation(KeyboardState keyboardState, GamePadState gamepadState)
+private void HandleItemTransfer(KeyboardState keyboardState, GamePadState gamepadState)
+private void PerformItemTransfer()
+
+// NEW InteractionSystem sprite center detection
+private Vector2 GetSpriteCenterPosition(Entity entity, TransformComponent transform)
+```
+
+#### NEW Events Added
+```csharp
+public struct ItemTransferEvent
+{
+    public Entity ItemEntity;
+    public Entity SourceContainer;
+    public Entity TargetContainer;
+    public int SourceSlotIndex;
+    public int TargetSlotIndex;
+    public string TransferType; // "player-to-chest", "chest-to-player"
+}
+
+public struct InventorySlotSelectedEvent
+{
+    public Entity ContainerEntity;
+    public int SlotIndex;
+    public bool IsPlayerInventory;
+}
+```
+
+### 🔧 Bug Fixes
+- **Fixed Interaction Detection**: Resolved offset issues where interaction zones appeared below and right of visual sprites
+- **Fixed Scaled Entity Positioning**: Proper center calculation for entities with different scale factors
+- **Fixed Input Handling**: Clean key press detection without rapid-fire triggering
+- **Cleaned Debug Output**: Removed excessive console logging for better performance
+
+## 🎉 v0.1.4 - Chest UI System Implementation (2025)
+
+### ✨ NEW Features Added
+
+#### 🏺 NEW Chest UI System
+- **NEW ChestUIRenderSystem**: Complete chest overlay UI rendering system
+- **NEW Chest Overlay**: Modal overlay that appears when interacting with chests
+- **NEW Input Handling**: ESC key and gamepad B button to close chest UI
+- **NEW Atlas Architecture**: Separate OverlayAtlas for large UI panels (48x48+)
+- **NEW Scaling System**: 4x scaling (48x48 → 192x192) for better visibility
+- **NEW Event System**: ChestUIOpenEvent/CloseEvent for clean UI communication
+
+#### 🎮 Enhanced User Experience
+- **Modal Chest Interface**: Press E on chest to open, ESC/B to close
+- **Visual Feedback**: Large, clear chest overlay with semi-transparent background
+- **Input Isolation**: Proper key press detection prevents accidental menu transitions
+- **Clean UI Design**: Removed X button in favor of keyboard/gamepad controls
+
+#### 🏗️ Technical Architecture
+- **NEW OverlayAtlas System**: Dedicated texture atlas for large UI overlays
+- **Input State Tracking**: Previous frame state prevents rapid-fire input processing
+- **Event-Driven UI**: Clean separation between UI rendering and game logic
+- **Scene Integration**: Chest UI seamlessly integrates with GameplayScene
+
+### 🏗️ Technical Implementation
+
+#### NEW Systems Added
+```csharp
+// Complete chest UI overlay system
+ChestUIRenderSystem {
+    DrawChestUIOverlay()         // Renders scaled chest overlay
+    OnChestUIOpen()             // Handle chest opening events
+    OnChestUIClose()            // Handle chest closing events
+    LoadUIAtlases()             // Separate UI and overlay atlas loading
+}
+```
+
+#### Enhanced Input Architecture
+```csharp
+// Improved input handling with state tracking
+GameplayScene {
+    HandleChestUIInput()        // NEW dedicated chest UI input processing
+    // Key press detection (not hold) for clean UI interactions
+    // Gamepad B button support for console-style controls
+    // Input state isolation between chest UI and menu navigation
+}
+```
+
+#### NEW Content Architecture
+```csharp
+// Enhanced atlas system for different UI scales
+EntityConfig {
+    UIAtlas                     // 16x16 UI elements (existing)
+    OverlayAtlas               // 48x48+ overlay panels (NEW)
+}
+```
+
+### 📁 NEW Files Added
+```
+Content/images/
+├── overlay-atlas-definition.xml     // NEW overlay atlas configuration
+├── PrisonBreakChestOverlay.png     // NEW 48x48 chest overlay sprite
+
+ECS/Systems/
+└── ChestUIRenderSystem.cs          // NEW complete chest UI rendering system
+
+Config/
+└── EntityConfig.cs                 // Enhanced with OverlayAtlas configuration
+```
+
+### 🎮 User Experience
+
+#### Chest Interaction Flow
+1. **Approach Chest**: Walk near any chest entity in the game world
+2. **Open Chest**: Press E (keyboard) or X button (gamepad) to interact
+3. **View Interface**: Large chest overlay appears with semi-transparent background
+4. **Close Interface**: Press ESC (keyboard) or B button (gamepad) to close
+5. **Return to Game**: World simulation continues seamlessly
+
+#### Input Controls
+- **Open Chest**: E key or X button (existing interaction system)
+- **Close Chest**: ESC key or B button (NEW chest-specific controls)
+- **Menu Navigation**: ESC only works for menu when chest UI is closed
+
+### 🚀 Architecture Improvements
+
+#### Clean Atlas Separation
+- **UIAtlas**: Small UI elements (16x16) for buttons, icons, slots
+- **OverlayAtlas**: Large UI panels (48x48+) for modals, overlays, screens
+- **Scalable Design**: 4x scaling maintains pixel-perfect appearance
+- **Future-Ready**: Architecture supports additional overlay types
+
+#### Event-Driven UI
+- **ChestUIOpenEvent**: Triggered by InteractionSystem when chest is opened
+- **ChestUICloseEvent**: Triggered by input handling when chest is closed
+- **Decoupled Systems**: UI rendering completely separate from interaction logic
+- **State Management**: Clean UI state tracking in GameplayScene
+
+---
+
+## 🎉 v0.1.3 - Interaction System Implementation (2025)
+
+### ✨ NEW Features Added
+
+#### 🤝 Interaction System
+- **NEW InteractionSystem**: Complete interaction handling for items and chests
+- **NEW Input Detection**: E key (keyboard) and X button (gamepad) interaction support
+- **NEW Proximity Detection**: Smart distance-based interaction with 64px range
+- **NEW Item Pickup**: Full world-to-inventory item transfer system
+- **NEW Chest Interaction**: Basic chest interaction (ready for Phase 3 UI)
+- **NEW Debug Logging**: Comprehensive debugging tools for interaction troubleshooting
+
+#### 🏗️ NEW Components Added
+- **NEW InteractableComponent**: Mark entities as interactable (pickup, chest, door)
+- **NEW ContainerComponent**: Chest/container storage with configurable item capacity
+- **NEW InteractionInputEvent**: Event-driven interaction input handling
+- **NEW InteractionEvent**: Communication for interaction processing
+
+#### 🎒 Enhanced Inventory System
+- **NEW CreateItemAtPosition()**: World-placed items with pickup functionality
+- **NEW CreateChest()**: Interactable chest entities with optional starting items
+- **NEW Entity Transfer System**: Separate world/inventory entities for clean management
+- **NEW Chest Sprite**: Added chest sprite to UI atlas configuration
+
+### 🏗️ Technical Implementation
+
+#### NEW Systems Added
+```csharp
+// Complete interaction handling system
+InteractionSystem {
+    OnInteractionInput()         // Handle E/X button presses
+    FindNearestInteractable()    // Proximity detection within range
+    ProcessInteraction()         // Route to appropriate handler
+    HandleItemPickup()          // Add items to inventory & remove from world
+    HandleChestInteraction()    // Debug placeholder for Phase 3
+}
+```
+
+#### Enhanced Input System
+```csharp
+// Extended ComponentInputSystem with interaction support
+ComponentInputSystem {
+    CheckKeyboardInput()        // NEW E key press detection
+    CheckGamePadInput()         // NEW X button press detection
+    // Proper press/release handling to prevent key holding
+}
+```
+
+#### NEW Factory Methods
+```csharp
+// Enhanced ComponentEntityManager
+CreateItemAtPosition()          // World-placed items for pickup
+CreateChest()                  // Interactable containers with items
+// Enhanced CreateItem() with ItemDatabase integration
+```
+
+### 🎮 User Experience
+
+#### Interactive World
+- **Item Pickup**: Walk near items and press E to collect them
+- **Visual Feedback**: Items appear 2x larger (32x32) for better visibility  
+- **Smart Interaction**: Only interact with items within range
+- **Inventory Display**: Picked up items appear immediately in inventory UI
+- **World Cleanup**: Items disappear from world when picked up
+
+#### Chest System Foundation
+- **Chest Entities**: Interactable chests placed in game world
+- **Chest Sprites**: Proper visual representation using UI atlas
+- **Interaction Ready**: Press E near chests (Phase 3 will add chest UI)
+
+### 🚀 Architecture Improvements
+
+#### Clean Entity Management
+- **Separate Entities**: World items vs inventory items are distinct entities
+- **No Visibility Conflicts**: Items don't flicker between world/inventory states
+- **Memory Efficiency**: Inventory items don't carry unnecessary world components
+- **Future-Ready**: Entity destruction system planned for proper cleanup
+
+### 📁 NEW Files Added
+```
+ECS/Systems/
+└── InteractionSystem.cs         // Complete interaction handling system
+
+ECS/Components.cs                 // Enhanced with InteractableComponent, ContainerComponent
+
+ECS/EventSystem.cs               // Enhanced with InteractionInputEvent, InteractionEvent
+
+Content/images/
+└── ui-atlas-definition.xml      // Enhanced with chest sprite definition
+```
+
+---
+
+## 🎉 v0.1.2 - Inventory System UI Implementation (2025)
+
+### ✨ NEW Features Added
+
+#### 🎒 Inventory UI System
+- **InventoryUIRenderSystem**: Complete visual rendering system for inventory interface
+- **Real-time Display**: Live inventory state visualization during gameplay
+- **Dynamic Slots**: UI adapts to player type (Prisoner: 3 slots, Cop: 4 slots)
+- **UI Atlas Integration**: Consistent visual design using PrisonBreakUI.png atlas
+- **Empty Slot Rendering**: Clear visual indicators for available inventory space
+- **Item Icon Display**: Visual representation of items in inventory slots
+
+### 🏗️ Technical Implementation
+
+#### NEW Components Enhanced
+```csharp
+// Enhanced inventory rendering capability
+InventoryUIRenderSystem {
+    DrawInventoryGrid()      // Renders slot grid based on capacity
+    DrawInventorySlots()     // Individual slot rendering with items
+    DrawEmptySlots()         // Visual placeholders for empty slots
+    UpdateInventoryUI()      // Real-time state synchronization
+}
+```
+
+#### NEW Files Added
+```
+ECS/Systems/
+└── InventoryUIRenderSystem.cs    // Complete inventory UI rendering system
+
+Content/images/
+├── PrisonBreakUI.png             // UI atlas for inventory interface
+├── PrisonBreakUI.aseprite        // Source graphics file
+└── ui-atlas-definition.xml       // UI element definitions
+```
+
+### 🎮 User Experience Improvements
+
+#### Visual Inventory System
+- **Clear Visual Feedback**: Players can see their inventory status at all times
+- **Slot-based Interface**: Each inventory slot is clearly defined and visible
+- **Type-aware Display**: Different inventory capacities shown based on player type
+- **Consistent Styling**: UI elements match game's visual theme
+
+### 🚀 Foundation for Advanced Features
+
+This inventory UI system provides the foundation for:
+- **Item Interaction**: Ready for pickup/drop mechanics
+- **Chest Interfaces**: Framework for container interaction
+- **Item Management**: Visual item organization and manipulation
+- **Inventory Screens**: Full-screen inventory management interfaces
+
+---
+
+## 🎉 v0.1.1 - Core Inventory System (2024)
+
+### ✨ NEW Features Added
+
+#### 🎒 Complete Inventory System (Core Implementation)
+- **InventorySystem**: Complete core inventory management system
+- **Event-Driven**: ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent
+- **Player Integration**: Automatic inventory initialization based on player type
+- **Slot Management**: Add/remove items with slot-based organization
+
+---
+
+## 🎉 v0.1.0 - Scene-Based Architecture (2024)
 
 ### ✨ Major Features Added
 
@@ -15,12 +352,19 @@
 - **Dynamic Selection**: Choose between Prisoner and Cop in start menu
 - **Attribute Differences**: Different speeds and animations per player type
 - **Runtime Switching**: Live player type changes in menu
+- **Inventory Integration**: Type-specific inventory slots (Prisoner: 3, Cop: 4)
 
 #### 🎨 Menu Infrastructure
 - **MenuInputSystem**: Keyboard/gamepad navigation (Arrow keys, Enter, ESC)
 - **MenuRenderSystem**: Professional text rendering with font support
 - **Font Integration**: MonoGame Content Pipeline with Minecraft font
 - **UI Components**: MenuItemComponent and TextComponent for flexible menus
+
+#### 🎒 Inventory System (Core Implementation)
+- **InventorySystem**: Complete core inventory management system
+- **Event-Driven**: ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent
+- **Player Integration**: Automatic inventory initialization based on player type
+- **Slot Management**: Add/remove items with slot-based organization
 
 ### 🏗️ Architectural Improvements
 
@@ -68,6 +412,7 @@ PlayerTypeComponent {
     PlayerType Type;           // Prisoner or Cop
     float SpeedMultiplier;     // Type-specific speed
     string AnimationName;      // Type-specific animations
+    int InventorySlots;        // Type-specific inventory capacity
 }
 
 MenuItemComponent {
@@ -80,6 +425,19 @@ TextComponent {
     string Text;             // Display text
     SpriteFont Font;         // Font reference
     TextAlignment Alignment; // Text positioning
+}
+
+InventoryComponent {
+    int MaxSlots;             // Maximum inventory capacity
+    Entity[] Items;           // Array of item entities
+    int ItemCount;            // Current number of items
+}
+
+ItemComponent {
+    string ItemName;          // Display name
+    string ItemType;          // Item category
+    bool IsStackable;         // Can items stack
+    int StackSize;            // Maximum stack size
 }
 ```
 
@@ -124,7 +482,8 @@ Scenes/
 
 ECS/Systems/
 ├── MenuInputSystem.cs
-└── MenuRenderSystem.cs
+├── MenuRenderSystem.cs
+└── InventorySystem.cs
 
 Content/
 ├── MinecraftFont.spritefont
@@ -134,7 +493,9 @@ Content/
 #### Modified Files
 ```
 Game1.cs - Refactored to scene delegation
-Components.cs - Added PlayerTypeComponent, MenuItemComponent, TextComponent  
+Components.cs - Added PlayerTypeComponent, MenuItemComponent, TextComponent, InventoryComponent, ItemComponent
+EventSystem.cs - Added inventory events (ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent)
+ComponentEntityManager.cs - Updated CreatePlayer() to initialize inventory based on player type
 ```
 
 ### 🎯 Ready for Next Phase
