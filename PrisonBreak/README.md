@@ -5,6 +5,7 @@ A 2D action game built with MonoGame featuring an Entity Component System (ECS) 
 ## 🎮 Current Features
 
 ### Core Gameplay
+
 - **Player Types**: Choose between Prisoner and Cop with different attributes
   - Prisoner: 3 inventory slots, specific animations
   - Cop: 4 inventory slots, different movement characteristics
@@ -12,17 +13,20 @@ A 2D action game built with MonoGame featuring an Entity Component System (ECS) 
 - **ECS Framework**: Robust entity-component-system for game objects
 
 ### 🎒 Inventory System (v0.1.2)
+
 - **Visual Inventory UI**: Real-time inventory display during gameplay
 - **Dynamic Slot System**: Inventory capacity varies by player type
 - **Event-Driven**: ItemAddedEvent, ItemRemovedEvent, InventoryFullEvent
 - **UI Atlas Integration**: Consistent visual design with PrisonBreakUI.png
 
 ### 🎬 Scene Management
+
 - **StartMenuScene**: Professional menu with player type selection
 - **GameplayScene**: Main game logic and systems
 - **SceneManager**: Handles transitions and lifecycle management
 
 ### 🎨 UI System
+
 - **Menu Navigation**: Arrow keys, Enter, ESC support
 - **Font Integration**: Custom Minecraft font via Content Pipeline
 - **Responsive Design**: UI adapts to different screen elements
@@ -30,12 +34,14 @@ A 2D action game built with MonoGame featuring an Entity Component System (ECS) 
 ## 🏗️ Architecture
 
 ### Entity Component System (ECS)
+
 - **Components**: Data containers (Transform, Sprite, PlayerType, Inventory, etc.)
 - **Systems**: Logic processors (Movement, Rendering, Input, Inventory, etc.)
 - **Entities**: Game objects composed of components
 - **EventBus**: Decoupled communication between systems
 
 ### Key Systems
+
 - `ComponentMovementSystem` - Player movement and physics
 - `ComponentRenderSystem` - Sprite and graphics rendering
 - `ComponentInputSystem` - Keyboard and gamepad input
@@ -47,22 +53,26 @@ A 2D action game built with MonoGame featuring an Entity Component System (ECS) 
 ## 🎯 Controls
 
 ### Menu Navigation
+
 - **Arrow Keys**: Navigate menu options and select player type
 - **Enter**: Confirm selection / Start game
 - **ESC**: Return to menu from gameplay
 
 ### Gameplay
+
 - **WASD / Arrow Keys**: Player movement
 - **Gamepad Support**: Xbox controller compatible
 
 ## 🔧 Technical Details
 
 ### Built With
+
 - **MonoGame Framework**: Cross-platform game development
 - **C# .NET**: Primary programming language
 - **Content Pipeline**: Asset management and processing
 
 ### Project Structure
+
 ```
 /ECS/                    # Entity Component System
 ├── Components.cs        # All game components
@@ -85,8 +95,9 @@ A 2D action game built with MonoGame featuring an Entity Component System (ECS) 
 ## 🚀 Upcoming Features
 
 The architecture is designed to support:
+
 - **Item Interaction System**: Pickup and drop mechanics
-- **Chest/Container System**: Interactive storage containers  
+- **Chest/Container System**: Interactive storage containers
 - **Advanced Inventory Management**: Drag-and-drop, item stacking
 - **Door Interaction System**: Level progression mechanics
 - **Multiplayer Support**: Network-based gameplay
@@ -94,11 +105,13 @@ The architecture is designed to support:
 ## 📋 Getting Started
 
 ### Prerequisites
+
 - Visual Studio 2019+ or Visual Studio Code
 - .NET 5.0 or later
 - MonoGame Framework
 
 ### Building and Running
+
 1. Clone the repository
 2. Open `PrisonBreak.sln` in Visual Studio
 3. Restore NuGet packages
@@ -109,7 +122,7 @@ The architecture is designed to support:
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and feature updates.
 
 - ✅ v0.1.0 - Scene-based architecture
-- ✅ v0.1.1 - Core inventory system  
+- ✅ v0.1.1 - Core inventory system
 - ✅ v0.1.2 - Inventory UI system
 - 🚧 v0.1.3 - Item interaction system (planned)
 
