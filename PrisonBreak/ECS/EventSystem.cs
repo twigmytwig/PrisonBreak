@@ -242,3 +242,38 @@ public struct ChestUICloseEvent
         PlayerEntity = playerEntity;
     }
 }
+
+public struct ItemTransferEvent
+{
+    public Entity ItemEntity;
+    public Entity SourceContainer;  // Could be player or chest
+    public Entity TargetContainer;  // Could be player or chest
+    public int SourceSlotIndex;
+    public int TargetSlotIndex;
+    public string TransferType;     // "player-to-chest", "chest-to-player"
+    
+    public ItemTransferEvent(Entity itemEntity, Entity sourceContainer, Entity targetContainer, 
+        int sourceSlotIndex, int targetSlotIndex, string transferType)
+    {
+        ItemEntity = itemEntity;
+        SourceContainer = sourceContainer;
+        TargetContainer = targetContainer;
+        SourceSlotIndex = sourceSlotIndex;
+        TargetSlotIndex = targetSlotIndex;
+        TransferType = transferType;
+    }
+}
+
+public struct InventorySlotSelectedEvent
+{
+    public Entity ContainerEntity;  // Player or chest entity
+    public int SlotIndex;
+    public bool IsPlayerInventory;
+    
+    public InventorySlotSelectedEvent(Entity containerEntity, int slotIndex, bool isPlayerInventory)
+    {
+        ContainerEntity = containerEntity;
+        SlotIndex = slotIndex;
+        IsPlayerInventory = isPlayerInventory;
+    }
+}

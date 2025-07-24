@@ -26,6 +26,10 @@ public class ChestUIRenderSystem : IGameSystem
     private Entity _currentChestEntity = null;
     private Entity _currentPlayerEntity = null;
 
+    // Selection state
+    private int _selectedSlotIndex = 0;
+    private bool _isPlayerInventorySelected = true;
+
     public void SetEntityManager(ComponentEntityManager entityManager)
     {
         _entityManager = entityManager;
@@ -50,6 +54,7 @@ public class ChestUIRenderSystem : IGameSystem
         // Subscribe to chest UI events
         _eventBus?.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
         _eventBus?.Subscribe<ChestUICloseEvent>(OnChestUIClose);
+        _eventBus?.Subscribe<InventorySlotSelectedEvent>(OnSlotSelected);
     }
 
     public void Update(GameTime gameTime)
@@ -71,6 +76,7 @@ public class ChestUIRenderSystem : IGameSystem
         // Unsubscribe from events
         _eventBus?.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
         _eventBus?.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
+        _eventBus?.Unsubscribe<InventorySlotSelectedEvent>(OnSlotSelected);
     }
 
     private void LoadUIAtlases()
@@ -118,6 +124,13 @@ public class ChestUIRenderSystem : IGameSystem
         Console.WriteLine($"ChestUIRenderSystem: Chest UI closed for chest {evt.ChestEntity.Id}");
     }
 
+    private void OnSlotSelected(InventorySlotSelectedEvent evt)
+    {
+        _selectedSlotIndex = evt.SlotIndex;
+        _isPlayerInventorySelected = evt.IsPlayerInventory;
+        Console.WriteLine($"ChestUIRenderSystem: Selected slot {evt.SlotIndex} in {(evt.IsPlayerInventory ? "player" : "chest")} inventory");
+    }
+
     private void DrawChestUIOverlay(SpriteBatch spriteBatch)
     {
         if (_overlayAtlas == null || _uiAtlas == null)
@@ -162,8 +175,115 @@ public class ChestUIRenderSystem : IGameSystem
         }
 
 
-        // TODO: Draw chest inventory slots
-        // TODO: Draw player inventory slots  
-        // TODO: Draw transfer arrows
+        // Draw chest and player inventory slots
+        DrawInventorySlots(spriteBatch, screenCenter);
+    }
+
+    private void DrawInventorySlots(SpriteBatch spriteBatch, Vector2 screenCenter)
+    {
+        if (_uiAtlas == null || _currentChestEntity == null || _currentPlayerEntity == null)
+            return;
+
+        try
+        {
+            // Configuration for slot rendering
+            const int slotScaleSize = 4; // 16x16 sprites scaled 2x for visibility
+            const int slotSpacing = 65; // Space between slots
+
+            // Get chest and player inventory data
+            var chestContainer = _currentChestEntity.HasComponent<ContainerComponent>()
+                ? _currentChestEntity.GetComponent<ContainerComponent>()
+                : new ContainerComponent(0);
+
+            var playerInventory = _currentPlayerEntity.HasComponent<InventoryComponent>()
+                ? _currentPlayerEntity.GetComponent<InventoryComponent>()
+                : new InventoryComponent(0);
+
+            // Draw chest inventory title and slots
+            Vector2 chestInventoryStart = screenCenter + new Vector2(-(16 * slotScaleSize * 5), -(16 * slotScaleSize * 2));
+            bool isChestSelected = !_isPlayerInventorySelected;
+            DrawInventoryGrid(spriteBatch, chestInventoryStart, chestContainer.ContainedItems,
+                chestContainer.MaxItems, slotScaleSize, slotSpacing, isChestSelected);
+
+            // Draw player inventory title and slots  
+            Vector2 playerInventoryStart = screenCenter + new Vector2(-100, 20);
+            bool isPlayerSelected = _isPlayerInventorySelected;
+            DrawInventoryGrid(spriteBatch, playerInventoryStart, playerInventory.Items,
+                playerInventory.MaxSlots, slotScaleSize, slotSpacing, isPlayerSelected);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ChestUIRenderSystem: Error drawing inventory slots: {ex.Message}");
+        }
+    }
+
+    private void DrawInventoryGrid(SpriteBatch spriteBatch, Vector2 startPosition,
+        Entity[] items, int maxSlots, int slotScaleSize, int slotSpacing, bool isSelectedInventory)
+    {
+        if (_uiAtlas == null || items == null)
+            return;
+
+        // Draw inventory slots
+        for (int i = 0; i < maxSlots; i++)
+        {
+            Vector2 slotPosition = startPosition + new Vector2(i * slotSpacing, 0);
+
+            // Determine slot color based on selection
+            Color slotColor = Color.White;
+            if (isSelectedInventory && i == _selectedSlotIndex)
+            {
+                slotColor = Color.Yellow; // Highlight selected slot
+            }
+
+            // Draw empty slot background
+            var slotSprite = _uiAtlas.CreateAnimatedSprite("inventory-slot");
+            if (slotSprite != null)
+            {
+                Vector2 slotScale = new Vector2(slotScaleSize, slotScaleSize); // Scale 16x16 to 32x32
+                slotSprite.CurrentRegion.Draw(spriteBatch, slotPosition, slotColor,
+                    0f, Vector2.Zero, slotScale, SpriteEffects.None, 0.85f);
+            }
+
+            // Draw item icon if slot contains an item
+            if (i < items.Length && items[i] != null && items[i].HasComponent<ItemComponent>())
+            {
+                var itemComponent = items[i].GetComponent<ItemComponent>();
+                DrawItemIcon(spriteBatch, slotPosition, itemComponent, slotScaleSize);
+            }
+        }
+    }
+
+    private void DrawItemIcon(SpriteBatch spriteBatch, Vector2 position, ItemComponent item, int slotScaleSize)
+    {
+        if (_uiAtlas == null)
+            return;
+
+        try
+        {
+            // Get sprite name based on item type - currently only "key" is available
+            string spriteName = GetItemSpriteName(item);
+            var itemSprite = _uiAtlas.CreateAnimatedSprite(spriteName);
+
+            if (itemSprite != null)
+            {
+                Vector2 itemScale = new Vector2(slotScaleSize, slotScaleSize); // Match slot scale
+                itemSprite.CurrentRegion.Draw(spriteBatch, position, Color.White,
+                    0f, Vector2.Zero, itemScale, SpriteEffects.None, 0.8f);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ChestUIRenderSystem: Error drawing item icon: {ex.Message}");
+        }
+    }
+
+    private static string GetItemSpriteName(ItemComponent item)
+    {
+        // Map item names to sprite names in the UI atlas
+        return item.ItemName.ToLower() switch
+        {
+            "key" => "key",
+            _ => "inventory-slot" // Fallback to empty slot if sprite not found
+        };
     }
 }

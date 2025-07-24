@@ -1,5 +1,83 @@
 # Prison Break Game - Major Release
 
+## 🎉 v0.1.5 - Complete Inventory Transfer System (2025)
+
+### ✨ NEW Features Added
+
+#### 🔄 NEW Inventory Transfer Interface
+- **NEW Slot Navigation**: Arrow keys/D-pad navigation between inventory slots
+- **NEW Inventory Switching**: Up/Down arrows to switch between player and chest inventories
+- **NEW Item Transfer**: Enter/A button to transfer items between inventories
+- **NEW Visual Highlighting**: Selected slot highlighted with yellow tint for clear feedback
+- **NEW Real-time Display**: Both player and chest inventories visible simultaneously in overlay
+
+#### 🎮 NEW Enhanced Input Controls
+- **NEW Arrow Key Navigation**: Left/Right to move between slots within current inventory
+- **NEW Up/Down Navigation**: Switch focus between player inventory and chest inventory  
+- **NEW Transfer Action**: Enter key or gamepad A button to move selected item
+- **NEW Visual Feedback**: Clear indication of which slot and inventory is currently selected
+
+#### 🔧 NEW Container Management System
+- **NEW InventorySystem Methods**: `TryTransferItemToContainer`, `TryTransferItemToPlayer`, `GetContainerItemAtSlot`
+- **NEW Transfer Events**: `ItemTransferEvent` and `InventorySlotSelectedEvent` for UI communication
+- **NEW State Management**: Proper slot selection tracking and inventory focus handling
+- **NEW Error Handling**: Graceful handling of full inventories and invalid transfers
+
+#### 🎯 NEW Interaction Detection Improvements
+- **NEW Sprite Center Calculation**: Accurate interaction detection using visual sprite centers
+- **NEW Scaled Entity Support**: Proper handling of scaled players (4x) and items (2x)
+- **NEW Position Accuracy**: Fixed offset issues where interaction zones were misaligned
+- **NEW Dynamic Sizing**: Automatic sprite size detection from texture regions
+
+### 🏗️ Technical Implementation
+
+#### NEW Systems Enhanced
+```csharp
+// NEW Enhanced InventorySystem methods
+public bool TryTransferItemToContainer(Entity playerEntity, Entity containerEntity, int playerSlotIndex)
+public bool TryTransferItemToPlayer(Entity containerEntity, Entity playerEntity, int containerSlotIndex)
+public Entity GetContainerItemAtSlot(Entity containerEntity, int slotIndex)
+
+// NEW ChestUIRenderSystem slot selection
+private int _selectedSlotIndex = 0;
+private bool _isPlayerInventorySelected = true;
+private void OnSlotSelected(InventorySlotSelectedEvent evt)
+
+// NEW GameplayScene input handling
+private void HandleSlotNavigation(KeyboardState keyboardState, GamePadState gamepadState)
+private void HandleItemTransfer(KeyboardState keyboardState, GamePadState gamepadState)
+private void PerformItemTransfer()
+
+// NEW InteractionSystem sprite center detection
+private Vector2 GetSpriteCenterPosition(Entity entity, TransformComponent transform)
+```
+
+#### NEW Events Added
+```csharp
+public struct ItemTransferEvent
+{
+    public Entity ItemEntity;
+    public Entity SourceContainer;
+    public Entity TargetContainer;
+    public int SourceSlotIndex;
+    public int TargetSlotIndex;
+    public string TransferType; // "player-to-chest", "chest-to-player"
+}
+
+public struct InventorySlotSelectedEvent
+{
+    public Entity ContainerEntity;
+    public int SlotIndex;
+    public bool IsPlayerInventory;
+}
+```
+
+### 🔧 Bug Fixes
+- **Fixed Interaction Detection**: Resolved offset issues where interaction zones appeared below and right of visual sprites
+- **Fixed Scaled Entity Positioning**: Proper center calculation for entities with different scale factors
+- **Fixed Input Handling**: Clean key press detection without rapid-fire triggering
+- **Cleaned Debug Output**: Removed excessive console logging for better performance
+
 ## 🎉 v0.1.4 - Chest UI System Implementation (2025)
 
 ### ✨ NEW Features Added

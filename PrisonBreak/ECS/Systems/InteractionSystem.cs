@@ -51,35 +51,26 @@ public class InteractionSystem : IGameSystem
 
     private void OnInteractionInput(InteractionInputEvent evt)
     {
-        Console.WriteLine($"[DEBUG] Interaction input received for entity {evt.EntityId}");
-        
         var playerEntity = _entityManager.GetEntity(evt.EntityId);
         if (playerEntity == null || !playerEntity.HasComponent<TransformComponent>())
-        {
-            Console.WriteLine("[DEBUG] Player entity not found or missing transform");
             return;
-        }
 
         var playerTransform = playerEntity.GetComponent<TransformComponent>();
-        Console.WriteLine($"[DEBUG] Player position: {playerTransform.Position}");
+        
+        // Calculate player's visual center position (players are also scaled)
+        Vector2 playerCenter = GetSpriteCenterPosition(playerEntity, playerTransform);
 
-        // Find nearby interactables
-        var nearbyInteractable = FindNearestInteractable(playerTransform.Position);
+        // Find nearby interactables using player's center position
+        var nearbyInteractable = FindNearestInteractable(playerCenter);
         if (nearbyInteractable != null)
         {
-            Console.WriteLine($"[DEBUG] Found nearby interactable: {nearbyInteractable.Id}");
             ProcessInteraction(playerEntity, nearbyInteractable);
-        }
-        else
-        {
-            Console.WriteLine("[DEBUG] No nearby interactables found");
         }
     }
 
     private Entity FindNearestInteractable(Vector2 playerPosition)
     {
         var interactables = _entityManager.GetEntitiesWith<InteractableComponent, TransformComponent>().ToList();
-        Console.WriteLine($"[DEBUG] Found {interactables.Count} total interactable entities");
         
         Entity closestInteractable = null;
         float closestDistance = float.MaxValue;
@@ -88,28 +79,20 @@ public class InteractionSystem : IGameSystem
         {
             var interactableComponent = interactable.GetComponent<InteractableComponent>();
             var interactableTransform = interactable.GetComponent<TransformComponent>();
-            float distance = Vector2.Distance(playerPosition, interactableTransform.Position);
-            
-            Console.WriteLine($"[DEBUG] Interactable {interactable.Id} at {interactableTransform.Position}, distance: {distance:F2}, range: {interactableComponent.InteractionRange}, active: {interactableComponent.IsActive}");
             
             // Skip inactive interactables
             if (!interactableComponent.IsActive)
-            {
-                Console.WriteLine($"[DEBUG] Skipping inactive interactable {interactable.Id}");
                 continue;
-            }
+
+            // Calculate the visual center of the scaled sprite for accurate interaction detection
+            Vector2 spriteCenter = GetSpriteCenterPosition(interactable, interactableTransform);
+            float distance = Vector2.Distance(playerPosition, spriteCenter);
 
             if (distance <= interactableComponent.InteractionRange && distance < closestDistance)
             {
                 closestDistance = distance;
                 closestInteractable = interactable;
-                Console.WriteLine($"[DEBUG] New closest interactable: {interactable.Id} at distance {distance:F2}");
             }
-        }
-
-        if (closestInteractable == null)
-        {
-            Console.WriteLine("[DEBUG] No interactable within range found");
         }
 
         return closestInteractable;
@@ -141,26 +124,13 @@ public class InteractionSystem : IGameSystem
             case "door":
                 HandleDoorInteraction(playerEntity, interactableEntity);
                 break;
-            default:
-                Console.WriteLine($"Unknown interaction type: {interactableComponent.InteractionType}");
-                break;
         }
     }
 
     private void HandleItemPickup(Entity playerEntity, Entity itemEntity)
     {
-        if (_inventorySystem == null)
-        {
-            Console.WriteLine("Cannot pickup item - InventorySystem not set");
+        if (_inventorySystem == null || !itemEntity.HasComponent<ItemComponent>())
             return;
-        }
-
-        // Get the item data before destroying the world entity
-        if (!itemEntity.HasComponent<ItemComponent>())
-        {
-            Console.WriteLine("Cannot pickup item - missing ItemComponent");
-            return;
-        }
 
         var itemComponent = itemEntity.GetComponent<ItemComponent>();
         
@@ -200,31 +170,65 @@ public class InteractionSystem : IGameSystem
             
             // TODO: Actually destroy the world entity (remove from entity manager)
             // For now, making it invisible and inactive is sufficient
-
-            Console.WriteLine($"Item picked up successfully!");
         }
         else
         {
             // If inventory is full, clean up the temporary inventory entity
             // TODO: Properly destroy the temporary entity
-            Console.WriteLine("Could not pick up item - inventory might be full");
         }
     }
 
     private void HandleChestInteraction(Entity playerEntity, Entity chestEntity)
     {
-        Console.WriteLine($"Chest interaction detected - opening chest UI for chest {chestEntity.Id}");
-        
         // Send chest UI open event
         _eventBus?.Send(new ChestUIOpenEvent(chestEntity, playerEntity));
     }
 
     private void HandleDoorInteraction(Entity playerEntity, Entity doorEntity)
     {
-        // Simple door interaction - toggle door state
-        Console.WriteLine("Door interaction detected - toggling door (not fully implemented)");
-        
         // TODO: Implement door opening/closing logic
         // This might involve changing sprites, collision, etc.
+    }
+
+    /// <summary>
+    /// Calculates the visual center position of a scaled sprite
+    /// </summary>
+    private Vector2 GetSpriteCenterPosition(Entity entity, TransformComponent transform)
+    {
+        // Try to get actual sprite dimensions, otherwise use defaults
+        float baseSpriteWidth = 32f;  // Default for main atlas
+        float baseSpriteHeight = 32f;
+        
+        // Check if this is likely a UI sprite by examining the sprite component
+        if (entity.HasComponent<SpriteComponent>())
+        {
+            var spriteComponent = entity.GetComponent<SpriteComponent>();
+            if (spriteComponent.Sprite?.CurrentRegion != null)
+            {
+                // Get actual sprite dimensions from the texture region
+                var region = spriteComponent.Sprite.CurrentRegion;
+                baseSpriteWidth = region.Width;
+                baseSpriteHeight = region.Height;
+            }
+        }
+        
+        // If we can't get dimensions, use reasonable defaults based on common sizes
+        // Items are typically from main atlas (32x32), UI elements from UI atlas (16x16)
+        if (baseSpriteWidth == 0 || baseSpriteHeight == 0)
+        {
+            // Default to main atlas size for most interactable items
+            baseSpriteWidth = 32f;
+            baseSpriteHeight = 32f;
+        }
+        
+        // Calculate the visual size after scaling
+        float scaledWidth = baseSpriteWidth * transform.Scale.X;
+        float scaledHeight = baseSpriteHeight * transform.Scale.Y;
+        
+        // Calculate the center offset from the top-left position
+        Vector2 centerOffset = new Vector2(scaledWidth / 2, scaledHeight / 2);
+        
+        // Return the center position
+        return transform.Position + centerOffset;
     }
 }

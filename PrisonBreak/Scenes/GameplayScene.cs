@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using PrisonBreak.Core.Graphics;
@@ -31,11 +32,15 @@ public class GameplayScene : Scene, ITransitionDataReceiver
 
     // Data from start menu
     private GameStartData? _gameStartData;
-    
+
     // Chest UI state
     private bool _isChestUIOpen = false;
     private Entity _currentChestEntity = null;
-    
+
+    // Inventory slot selection state for chest UI
+    private int _selectedSlotIndex = 0;
+    private bool _isPlayerInventorySelected = true; // true = player inventory, false = chest inventory
+
     // Input state tracking
     private KeyboardState _previousKeyboardState;
     private GamePadState _previousGamepadState;
@@ -168,7 +173,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
 
         // Call base update which runs SystemManager.Update (world continues running)
         base.Update(gameTime);
-        
+
         // Store current input state for next frame
         _previousKeyboardState = currentKeyboardState;
         _previousGamepadState = currentGamepadState;
@@ -253,10 +258,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         {
             var keyItem1 = EntityManager.CreateKey();
             var keyItem2 = EntityManager.CreateKey();
-            
+
             _inventorySystem.TryAddItem(cop1, keyItem1);
             _inventorySystem.TryAddItem(cop2, keyItem2);
-            
+
             Console.WriteLine($"AI cops {cop1.Id} and {cop2.Id} received starting keys");
         }
         catch (Exception ex)
@@ -278,7 +283,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<EntitySpawnEvent>(OnEntitySpawn);
         EventBus.Subscribe<PlayerCopCollisionEvent>(OnPlayerCopCollision);
         EventBus.Subscribe<TeleportEvent>(OnTeleport);
-        
+
         // Subscribe to chest UI events
         EventBus.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Subscribe<ChestUICloseEvent>(OnChestUIClose);
@@ -336,6 +341,11 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         Console.WriteLine($"Opening chest UI for chest {evt.ChestEntity.Id}");
         _isChestUIOpen = true;
         _currentChestEntity = evt.ChestEntity;
+
+        // Reset slot selection to player inventory, slot 0
+        _selectedSlotIndex = 0;
+        _isPlayerInventorySelected = true;
+        SendSlotSelectedEvent();
     }
 
     private void OnChestUIClose(ChestUICloseEvent evt)
@@ -350,16 +360,147 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         // Close chest UI on Escape or gamepad B button (check for key press, not hold)
         bool escapePressed = keyboardState.IsKeyDown(Keys.Escape) && !_previousKeyboardState.IsKeyDown(Keys.Escape);
         bool bButtonPressed = gamepadState.Buttons.B == ButtonState.Pressed && _previousGamepadState.Buttons.B == ButtonState.Released;
-        
+
         if (escapePressed || bButtonPressed)
         {
             if (_currentChestEntity != null)
             {
                 EventBus.Send(new ChestUICloseEvent(_currentChestEntity, null));
             }
+            return;
         }
-        
-        // TODO: Add item transfer input (arrow keys, mouse clicks)
+
+        // Handle slot navigation with arrow keys / gamepad D-Pad
+        HandleSlotNavigation(keyboardState, gamepadState);
+
+        // Handle item transfer with Enter key / gamepad A button
+        HandleItemTransfer(keyboardState, gamepadState);
+    }
+
+    private void HandleSlotNavigation(KeyboardState keyboardState, GamePadState gamepadState)
+    {
+        // Left/Right arrow keys or D-Pad to change selected slot
+        bool leftPressed = (keyboardState.IsKeyDown(Keys.Left) && !_previousKeyboardState.IsKeyDown(Keys.Left)) ||
+                          (gamepadState.DPad.Left == ButtonState.Pressed && _previousGamepadState.DPad.Left == ButtonState.Released);
+        bool rightPressed = (keyboardState.IsKeyDown(Keys.Right) && !_previousKeyboardState.IsKeyDown(Keys.Right)) ||
+                           (gamepadState.DPad.Right == ButtonState.Pressed && _previousGamepadState.DPad.Right == ButtonState.Released);
+
+        // Up/Down arrow keys or D-Pad to switch between player and chest inventory
+        bool upPressed = (keyboardState.IsKeyDown(Keys.Up) && !_previousKeyboardState.IsKeyDown(Keys.Up)) ||
+                        (gamepadState.DPad.Up == ButtonState.Pressed && _previousGamepadState.DPad.Up == ButtonState.Released);
+        bool downPressed = (keyboardState.IsKeyDown(Keys.Down) && !_previousKeyboardState.IsKeyDown(Keys.Down)) ||
+                          (gamepadState.DPad.Down == ButtonState.Pressed && _previousGamepadState.DPad.Down == ButtonState.Released);
+
+        if (leftPressed)
+        {
+            _selectedSlotIndex = Math.Max(0, _selectedSlotIndex - 1);
+            SendSlotSelectedEvent();
+        }
+        else if (rightPressed)
+        {
+            int maxSlots = GetMaxSlotsForCurrentInventory();
+            _selectedSlotIndex = Math.Min(maxSlots - 1, _selectedSlotIndex + 1);
+            SendSlotSelectedEvent();
+        }
+        else if (downPressed && !_isPlayerInventorySelected)
+        {
+            // Switch from chest to player inventory
+            _isPlayerInventorySelected = true;
+            _selectedSlotIndex = Math.Min(_selectedSlotIndex, GetMaxSlotsForCurrentInventory() - 1);
+            SendSlotSelectedEvent();
+        }
+        else if (upPressed && _isPlayerInventorySelected)
+        {
+            // Switch from player to chest inventory
+            _isPlayerInventorySelected = false;
+            _selectedSlotIndex = Math.Min(_selectedSlotIndex, GetMaxSlotsForCurrentInventory() - 1);
+            SendSlotSelectedEvent();
+        }
+    }
+
+    private void HandleItemTransfer(KeyboardState keyboardState, GamePadState gamepadState)
+    {
+        // Enter key or gamepad A button to transfer item
+        bool enterPressed = keyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter);
+        bool aButtonPressed = gamepadState.Buttons.A == ButtonState.Pressed && _previousGamepadState.Buttons.A == ButtonState.Released;
+
+        if (enterPressed || aButtonPressed)
+        {
+            PerformItemTransfer();
+        }
+    }
+
+    private void PerformItemTransfer()
+    {
+        if (_inventorySystem == null || _currentChestEntity == null)
+            return;
+
+        // Get the player entity (assume first player for now)
+        var playerEntities = EntityManager.GetEntitiesWith<PlayerTag>();
+        var playerEntity = playerEntities.FirstOrDefault();
+        if (playerEntity == null)
+            return;
+
+        bool transferSuccess = false;
+
+        if (_isPlayerInventorySelected)
+        {
+            // Transfer from player to chest
+            transferSuccess = _inventorySystem.TryTransferItemToContainer(playerEntity, _currentChestEntity, _selectedSlotIndex);
+            if (transferSuccess)
+            {
+                Console.WriteLine($"[DEBUG] GameplayScene: Transferred item from player slot {_selectedSlotIndex} to chest");
+            }
+        }
+        else
+        {
+            // Transfer from chest to player
+            transferSuccess = _inventorySystem.TryTransferItemToPlayer(_currentChestEntity, playerEntity, _selectedSlotIndex);
+            if (transferSuccess)
+            {
+                Console.WriteLine($"[DEBUG] GameplayScene: Transferred item from chest slot {_selectedSlotIndex} to player");
+            }
+        }
+
+        if (!transferSuccess)
+        {
+            Console.WriteLine($"[DEBUG] GameplayScene: Item transfer failed - slot {_selectedSlotIndex} in {(_isPlayerInventorySelected ? "player" : "chest")} inventory");
+        }
+    }
+
+    private int GetMaxSlotsForCurrentInventory()
+    {
+        if (_isPlayerInventorySelected)
+        {
+            // Get player inventory size
+            var playerEntity = EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault();
+            if (playerEntity != null && playerEntity.HasComponent<InventoryComponent>())
+            {
+                return playerEntity.GetComponent<InventoryComponent>().MaxSlots;
+            }
+            return 3; // Default player inventory size
+        }
+        else
+        {
+            // Get chest inventory size
+            if (_currentChestEntity != null && _currentChestEntity.HasComponent<ContainerComponent>())
+            {
+                return _currentChestEntity.GetComponent<ContainerComponent>().MaxItems;
+            }
+            return 10; // Default chest size
+        }
+    }
+
+    private void SendSlotSelectedEvent()
+    {
+        Entity targetContainer = _isPlayerInventorySelected ?
+            EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault() :
+            _currentChestEntity;
+
+        if (targetContainer != null)
+        {
+            EventBus.Send(new InventorySlotSelectedEvent(targetContainer, _selectedSlotIndex, _isPlayerInventorySelected));
+        }
     }
 
     public override void OnExit()

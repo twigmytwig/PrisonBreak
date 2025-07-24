@@ -449,18 +449,18 @@ public class ComponentEntityManager
     public Entity CreateItemAtPosition(string itemId, Vector2 position)
     {
         var itemEntity = CreateItem(itemId);
-        
+
         // Add transform component for world placement (make items 2x larger)
         itemEntity.AddComponent(new TransformComponent(position, new Vector2(2.0f, 2.0f)));
-        
+
         // Make item interactable for pickup (increase interaction range)
         var itemComponent = itemEntity.GetComponent<ItemComponent>();
         itemEntity.AddComponent(new InteractableComponent(
-            "pickup", 
+            "pickup",
             64f, // Increased from 48f
             $"Press E to pick up {itemComponent.ItemName}"
         ));
-        
+
         return itemEntity;
     }
 
@@ -477,7 +477,7 @@ public class ComponentEntityManager
         var entity = CreateEntity();
 
         // Transform
-        entity.AddComponent(new TransformComponent(position, Vector2.One));
+        entity.AddComponent(new TransformComponent(position, new Vector2(5f, 5f)));
 
         // Sprite - try to get chest sprite from UI atlas first, then main atlas
         AnimatedSprite chestSprite;
@@ -531,8 +531,8 @@ public class ComponentEntityManager
 
         // Add collision for chest (optional - chests can be walked through or solid)
         var collider = new RectangleCollider(
-            (int)position.X, 
-            (int)position.Y, 
+            (int)position.X,
+            (int)position.Y,
             32, 32); // Standard chest size
         entity.AddComponent(new CollisionComponent(collider) { IsSolid = true });
 
