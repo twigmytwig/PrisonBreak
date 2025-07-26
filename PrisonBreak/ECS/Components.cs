@@ -2,6 +2,7 @@ using System;
 using Microsoft.Xna.Framework;
 using PrisonBreak.Core.Graphics;
 using PrisonBreak.Core.Physics;
+using PrisonBreak.Multiplayer.Core;
 
 namespace PrisonBreak.ECS;
 
@@ -306,5 +307,42 @@ public struct ContainerComponent
         ContainedItems = new Entity[maxItems];
         ItemCount = 0;
         ContainerType = containerType;
+    }
+}
+
+// Network component following existing component struct pattern
+// Only added to entities that need network synchronization
+public struct NetworkComponent
+{
+    public int NetworkId;              // Network entity ID
+    public NetworkConfig.NetworkAuthority Authority; // Who controls this entity
+    public bool SyncTransform;         // Sync position/rotation
+    public bool SyncMovement;          // Sync velocity/physics
+    public bool SyncInventory;         // Sync inventory changes
+    public float LastSyncTime;         // For interpolation
+    public int OwnerId;                // Which player owns this entity
+    
+    public NetworkComponent(int networkId, NetworkConfig.NetworkAuthority authority, int ownerId = -1)
+    {
+        NetworkId = networkId;
+        Authority = authority;
+        SyncTransform = true;
+        SyncMovement = true;
+        SyncInventory = true;
+        LastSyncTime = 0f;
+        OwnerId = ownerId;
+    }
+    
+    // Constructor with sync options for fine-grained control
+    public NetworkComponent(int networkId, NetworkConfig.NetworkAuthority authority, 
+        bool syncTransform, bool syncMovement, bool syncInventory, int ownerId = -1)
+    {
+        NetworkId = networkId;
+        Authority = authority;
+        SyncTransform = syncTransform;
+        SyncMovement = syncMovement;
+        SyncInventory = syncInventory;
+        LastSyncTime = 0f;
+        OwnerId = ownerId;
     }
 }

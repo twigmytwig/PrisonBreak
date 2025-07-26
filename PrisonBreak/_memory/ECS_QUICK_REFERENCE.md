@@ -38,6 +38,17 @@ var prisoners = entityManager.GetEntitiesWith<PlayerTypeComponent>()
 
 // Get menu items (NEW)
 var menuItems = entityManager.GetEntitiesWith<MenuItemComponent, TransformComponent>();
+
+// Get networked entities (MULTIPLAYER)
+var networkEntities = entityManager.GetEntitiesWith<NetworkComponent>();
+
+// Get entities that need transform sync
+var transformSyncEntities = entityManager.GetEntitiesWith<NetworkComponent, TransformComponent>()
+    .Where(e => e.GetComponent<NetworkComponent>().SyncTransform);
+
+// Get entities owned by specific player
+var playerOwnedEntities = entityManager.GetEntitiesWith<NetworkComponent>()
+    .Where(e => e.GetComponent<NetworkComponent>().OwnerId == playerId);
 ```
 
 ### Modifying Components
@@ -87,6 +98,11 @@ if (entity.HasComponent<CollisionComponent>())
 | `InventoryComponent` | Item storage | `int MaxSlots`, `Entity[] Items`, `int ItemCount` |
 | `ItemComponent` | Item properties | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize` |
 
+### Networking Components (Multiplayer)
+| Component | Purpose | Key Fields | Location |
+|-----------|---------|------------|----------|
+| `NetworkComponent` | Network synchronization | `int NetworkId`, `NetworkConfig.NetworkAuthority Authority`, `bool SyncTransform`, `bool SyncMovement`, `bool SyncInventory`, `int OwnerId` | `PrisonBreak.ECS` (Components.cs) |
+
 ### Menu/UI Components (NEW)
 | Component | Purpose | Key Fields |
 |-----------|---------|------------|
@@ -103,7 +119,8 @@ if (entity.HasComponent<CollisionComponent>())
 2. ComponentMovementSystem - Apply movement from events + tile collision detection
 3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
 4. InventorySystem         - Manage player inventories and item interactions
-5. ComponentRenderSystem   - Draw everything
+5. NetworkManager          - Handle multiplayer networking (if enabled)
+6. ComponentRenderSystem   - Draw everything
 ```
 
 #### Start Menu Scene (NEW)
@@ -277,6 +294,31 @@ if (itemInSlot != null && itemInSlot.HasComponent<ItemComponent>())
 }
 ```
 
+### Networking Pattern (Multiplayer)
+```csharp
+using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+
+// Create networked player entity
+var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
+player.AddComponent(new NetworkComponent(networkId: 1, NetworkConfig.NetworkAuthority.Client, ownerId: playerId));
+
+// Create networked chest (server authority, inventory sync only)
+var chest = entityManager.CreateEntity();
+chest.AddComponent(new TransformComponent(position));
+chest.AddComponent(new ContainerComponent(maxItems: 6));
+chest.AddComponent(new NetworkComponent(networkId: 2, NetworkConfig.NetworkAuthority.Server, 
+    syncTransform: false,  // Chests don't move
+    syncMovement: false,   // No physics
+    syncInventory: true,   // Sync inventory changes
+    ownerId: -1));         // Server-owned
+
+// NetworkManager automatically handles:
+// - Converting events to network messages
+// - Filtering by game mode (SinglePlayer vs Multiplayer)
+// - Event subscription management
+```
+
 ## 🔧 System Manager Usage
 
 ### Setup
@@ -288,6 +330,7 @@ systemManager.AddSystem(new ComponentInputSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentMovementSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentCollisionSystem(entityManager, eventBus));
 systemManager.AddSystem(new InventorySystem(entityManager, eventBus));
+systemManager.AddSystem(new NetworkManager(eventBus, entityManager)); // From PrisonBreak.Managers
 systemManager.AddSystem(new ComponentRenderSystem(entityManager));
 
 // Initialize all systems

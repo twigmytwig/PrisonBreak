@@ -513,3 +513,183 @@ PrisonBreak/
 ```
 
 This architecture provides flexibility while maintaining performance and organization. Follow these patterns for consistent, maintainable code.
+
+---
+
+## 🌐 Network-Aware Systems (Multiplayer)
+
+### Overview
+Network-aware systems bridge single-player game logic with multiplayer networking. They follow the event-driven pattern to integrate seamlessly with existing systems.
+
+### Step 1: Create Network-Aware System
+```csharp
+using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
+
+public class NetworkAwareSystem : IGameSystem
+{
+    private ComponentEntityManager _entityManager;
+    private EventBus _eventBus;
+    private NetworkManager _networkManager; // Reference to network manager
+    
+    public NetworkAwareSystem(ComponentEntityManager entityManager, EventBus eventBus, NetworkManager networkManager)
+    {
+        _entityManager = entityManager;
+        _eventBus = eventBus;
+        _networkManager = networkManager;
+    }
+    
+    public void Initialize()
+    {
+        // Subscribe to both local and network events
+        _eventBus.Subscribe<YourGameEvent>(OnLocalEvent);
+        _eventBus.Subscribe<NetworkMessageReceived>(OnNetworkMessage);
+    }
+    
+    public void Update(GameTime gameTime)
+    {
+        // Process entities with NetworkComponent
+        var networkEntities = _entityManager.GetEntitiesWith<NetworkComponent, YourComponent>();
+        
+        foreach (var entity in networkEntities)
+        {
+            var networkComp = entity.GetComponent<NetworkComponent>();
+            var yourComp = entity.GetComponent<YourComponent>();
+            
+            // Only process entities with appropriate authority
+            if (ShouldProcessEntity(networkComp))
+            {
+                // Your system logic here
+                ProcessEntity(entity, yourComp);
+            }
+        }
+    }
+    
+    private bool ShouldProcessEntity(NetworkComponent networkComp)
+    {
+        switch (_networkManager.CurrentGameMode)
+        {
+            case NetworkConfig.GameMode.SinglePlayer:
+                return true; // Process all entities in single player
+                
+            case NetworkConfig.GameMode.LocalHost:
+                return networkComp.Authority == NetworkConfig.NetworkAuthority.Server || 
+                       networkComp.OwnerId == GetLocalPlayerId();
+                       
+            case NetworkConfig.GameMode.Client:
+                return networkComp.OwnerId == GetLocalPlayerId();
+                
+            default:
+                return false;
+        }
+    }
+    
+    private void OnLocalEvent(YourGameEvent evt)
+    {
+        // Handle local event
+        // Send network message if in multiplayer mode
+        if (_networkManager.CurrentGameMode != NetworkConfig.GameMode.SinglePlayer)
+        {
+            var networkMessage = new YourNetworkMessage(evt);
+            // TODO: Send via NetworkManager
+        }
+    }
+    
+    private void OnNetworkMessage(NetworkMessageReceived evt)
+    {
+        if (evt.Message is YourNetworkMessage yourMessage)
+        {
+            // Convert network message back to local event
+            var localEvent = yourMessage.ToEvent();
+            ProcessNetworkEvent(localEvent);
+        }
+    }
+}
+```
+
+### Step 2: Event-Bridge Pattern
+The NetworkManager demonstrates the event-bridge pattern - listening to existing events and converting them to network messages:
+
+```csharp
+namespace PrisonBreak.Managers;
+
+public class NetworkManager : IGameSystem
+{
+    // Always subscribe to events, filter by game mode
+    public void Initialize()
+    {
+        _eventBus.Subscribe<PlayerInputEvent>(OnPlayerInput);
+        _eventBus.Subscribe<ItemTransferEvent>(OnItemTransfer);
+    }
+    
+    private void OnPlayerInput(PlayerInputEvent inputEvent)
+    {
+        // Only network in multiplayer modes
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+            
+        // Convert to network message and send
+        var message = new PlayerInputMessage(inputEvent);
+        SendNetworkMessage(message);
+    }
+}
+```
+
+### Step 3: Network Component Integration
+When creating entities that need networking, add NetworkComponent:
+
+```csharp
+public Entity CreateNetworkedPlayer(Vector2 position, int playerId)
+{
+    var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
+    
+    // Add networking component (NetworkComponent is in PrisonBreak.ECS namespace)
+    player.AddComponent(new NetworkComponent(
+        networkId: GetNextNetworkId(),
+        authority: NetworkConfig.NetworkAuthority.Client,
+        ownerId: playerId
+    ));
+    
+    return player;
+}
+```
+
+### Step 4: Authority and Validation
+```csharp
+private void ProcessPlayerAction(Entity playerEntity, PlayerActionEvent action)
+{
+    var networkComp = playerEntity.GetComponent<NetworkComponent>();
+    
+    // Validate authority
+    if (!HasAuthority(networkComp, action))
+    {
+        // Reject action or request from authoritative source
+        return;
+    }
+    
+    // Process the action
+    ApplyPlayerAction(playerEntity, action);
+    
+    // Broadcast to other clients if we're the authority
+    if (IsAuthoritative(networkComp))
+    {
+        BroadcastAction(action);
+    }
+}
+```
+
+### Network System Testing
+1. **Single-Player Compatibility**: Ensure system works when NetworkManager is in SinglePlayer mode
+2. **Authority Testing**: Test with different authority configurations
+3. **Event Flow**: Verify local events convert to network messages correctly
+4. **Multiplayer Integration**: Test with multiple clients
+
+### Network System Guidelines
+- **Authority Respect**: Only process entities you have authority over
+- **Single-Player Compatible**: Always support SinglePlayer mode
+- **Event-Driven**: Use existing EventBus for communication
+- **Validation**: Validate network inputs for security
+- **Performance**: Consider network bandwidth in update frequency
+
+This pattern allows existing systems to remain unchanged while adding optional multiplayer support through composition rather than modification.
