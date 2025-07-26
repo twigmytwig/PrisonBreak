@@ -411,8 +411,18 @@ public class NetworkManager : INetEventListener
                     
                 case "LobbyState":
                     var lobbyState = JsonConvert.DeserializeObject<LobbyStateMessage>(json);
-                    // This is handled by the NetworkEventBridge, just log it
                     Console.WriteLine($"[NetworkManager] Received lobby state with {lobbyState.ConnectedPlayers.Length} players");
+                    
+                    // Update our lobby players dictionary (important for clients)
+                    if (!_isHost)
+                    {
+                        _lobbyPlayers.Clear();
+                        foreach (var player in lobbyState.ConnectedPlayers)
+                        {
+                            _lobbyPlayers[player.PlayerId] = player;
+                            Console.WriteLine($"[NetworkManager] Added lobby player: {player.Name} (ID: {player.PlayerId}, Type: {player.SelectedType})");
+                        }
+                    }
                     break;
                     
                 case "GameState":

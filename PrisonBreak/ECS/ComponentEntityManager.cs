@@ -232,6 +232,28 @@ public class ComponentEntityManager
         return entity;
     }
 
+    /// <summary>
+    /// Create a player entity with network synchronization components
+    /// </summary>
+    public Entity CreateNetworkPlayer(Vector2 position, PlayerIndex playerIndex, PlayerType playerType, int networkId, bool isOwned = true)
+    {
+        var entity = CreatePlayer(position, playerIndex, playerType);
+        
+        // Add network components
+        entity.AddComponent(new NetworkComponent(networkId, isOwned, 0.05f) // 20 FPS sync
+        {
+            SyncTransform = true,
+            SyncMovement = true,
+            SyncComponents = false
+        });
+        
+        // Add authority component
+        entity.AddComponent(new AuthorityComponent(networkId, !isOwned, false));
+        
+        Console.WriteLine($"[EntityManager] Created network player: EntityId={entity.Id}, NetworkId={networkId}, IsOwned={isOwned}");
+        return entity;
+    }
+
     public Entity CreateCop(Vector2 position, AIBehavior behavior = AIBehavior.Patrol)
     {
         if (_atlas == null)

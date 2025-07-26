@@ -25,6 +25,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private InventoryUIRenderSystem _inventoryUIRenderSystem;
     private InteractionSystem _interactionSystem;
     private ChestUIRenderSystem _chestUIRenderSystem;
+    private NetworkMessageSystem _networkMessageSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -96,6 +97,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _inventoryUIRenderSystem = new InventoryUIRenderSystem();
         _interactionSystem = new InteractionSystem();
         _chestUIRenderSystem = new ChestUIRenderSystem();
+        _networkMessageSystem = new NetworkMessageSystem();
 
         // Set up system dependencies (same as Game1)
         _inputSystem.SetEntityManager(EntityManager);
@@ -123,6 +125,15 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _chestUIRenderSystem.SetEntityManager(EntityManager);
         _chestUIRenderSystem.SetEventBus(EventBus);
 
+        // Set up network system (only if multiplayer)
+        if (_isMultiplayer && _networkManager != null)
+        {
+            _networkMessageSystem.SetEntityManager(EntityManager);
+            _networkMessageSystem.SetEventBus(EventBus);
+            _networkMessageSystem.SetNetworkManager(_networkManager);
+            _networkMessageSystem.Initialize();
+        }
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -133,6 +144,12 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
         SystemManager.AddSystem(_chestUIRenderSystem); // Render chest UI on top
+        
+        // Add network system last (only if multiplayer)
+        if (_isMultiplayer && _networkMessageSystem != null)
+        {
+            SystemManager.AddSystem(_networkMessageSystem);
+        }
     }
 
     protected override void LoadSceneContent()
@@ -247,7 +264,21 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         PlayerType playerType = _gameStartData?.PlayerType ?? PlayerType.Prisoner;
         PlayerIndex playerIndex = _gameStartData?.PlayerIndex ?? PlayerIndex.One;
 
-        var playerEntity = EntityManager.CreatePlayer(playerStartPos, playerIndex, playerType);
+        Entity playerEntity;
+        if (_isMultiplayer && _networkManager != null)
+        {
+            // Create network-enabled player
+            int localNetworkId = _networkManager.LocalPlayerId;
+            playerEntity = EntityManager.CreateNetworkPlayer(playerStartPos, playerIndex, playerType, localNetworkId, isOwned: true);
+            
+            // Register with network system
+            _networkMessageSystem?.RegisterNetworkEntity(playerEntity);
+        }
+        else
+        {
+            // Create regular single-player entity
+            playerEntity = EntityManager.CreatePlayer(playerStartPos, playerIndex, playerType);
+        }
 
         // Create inventory UI for the player
         int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
@@ -317,6 +348,16 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Subscribe<ChestUICloseEvent>(OnChestUIClose);
 
+        // Subscribe to network events (if multiplayer)
+        if (_isMultiplayer)
+        {
+            EventBus.Subscribe<NetworkPlayerJoinEvent>(OnNetworkPlayerJoin);
+            EventBus.Subscribe<NetworkPlayerLeaveEvent>(OnNetworkPlayerLeave);
+            
+            // Create remote player entities for players that were already in the lobby
+            CreateExistingRemotePlayers();
+        }
+
         Console.WriteLine($"GameplayScene initialized with PlayerType: {playerType}");
     }
 
@@ -382,6 +423,135 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         Console.WriteLine($"Closing chest UI for chest {evt.ChestEntity.Id}");
         _isChestUIOpen = false;
         _currentChestEntity = null;
+    }
+
+    // Network Event Handlers
+
+    private void OnNetworkPlayerJoin(NetworkPlayerJoinEvent evt)
+    {
+        if (!_isMultiplayer || _networkManager == null) return;
+
+        // Don't create a remote entity for ourselves
+        if (evt.PlayerId == _networkManager.LocalPlayerId) return;
+
+        Console.WriteLine($"[GameplayScene] Creating remote player entity for {evt.PlayerName} (ID: {evt.PlayerId})");
+
+        try
+        {
+            // Create remote player entity at center of map (will be updated by network sync)
+            int centerRow = _tilemap.Rows / 2;
+            int centerColumn = _tilemap.Columns / 2;
+            Vector2 remotePlayerStartPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
+
+            // Create network player entity (not owned by us)
+            var remotePlayerEntity = EntityManager.CreateNetworkPlayer(
+                remotePlayerStartPos, 
+                PlayerIndex.Two, // Remote players use PlayerIndex.Two for now
+                evt.SelectedType, 
+                evt.PlayerId, 
+                isOwned: false
+            );
+
+            // Register with network system
+            _networkMessageSystem?.RegisterNetworkEntity(remotePlayerEntity);
+
+            // Add bounds constraint
+            EntityManager.AddBoundsConstraint(remotePlayerEntity, _roomBounds, false);
+
+            Console.WriteLine($"[GameplayScene] Remote player entity created: EntityId={remotePlayerEntity.Id}, NetworkId={evt.PlayerId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameplayScene] Error creating remote player entity: {ex.Message}");
+        }
+    }
+
+    private void OnNetworkPlayerLeave(NetworkPlayerLeaveEvent evt)
+    {
+        if (!_isMultiplayer) return;
+
+        Console.WriteLine($"[GameplayScene] Removing remote player entity for player {evt.PlayerId}");
+
+        try
+        {
+            // Find and remove the remote player entity
+            var networkEntities = EntityManager.GetEntitiesWith<NetworkComponent>();
+            var remotePlayerEntity = networkEntities.FirstOrDefault(e => 
+                e.GetComponent<NetworkComponent>().NetworkId == evt.PlayerId &&
+                !e.GetComponent<NetworkComponent>().IsOwned);
+
+            if (remotePlayerEntity != null)
+            {
+                _networkMessageSystem?.UnregisterNetworkEntity(remotePlayerEntity);
+                EntityManager.DestroyEntity(remotePlayerEntity.Id);
+                Console.WriteLine($"[GameplayScene] Removed remote player entity {remotePlayerEntity.Id}");
+            }
+            else
+            {
+                Console.WriteLine($"[GameplayScene] Could not find remote player entity for NetworkId {evt.PlayerId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameplayScene] Error removing remote player entity: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Create remote player entities for players that were already in the lobby when the game started
+    /// </summary>
+    private void CreateExistingRemotePlayers()
+    {
+        if (_networkManager == null) return;
+
+        Console.WriteLine($"[GameplayScene] Creating remote players for existing lobby players...");
+        Console.WriteLine($"[GameplayScene] Local player ID: {_networkManager.LocalPlayerId}");
+        Console.WriteLine($"[GameplayScene] Total lobby players: {_networkManager.LobbyPlayers.Count}");
+        Console.WriteLine($"[GameplayScene] IsHost: {_networkManager.IsHost}");
+
+        try
+        {
+            foreach (var lobbyPlayer in _networkManager.LobbyPlayers.Values)
+            {
+                // Skip creating entity for ourselves
+                if (lobbyPlayer.PlayerId == _networkManager.LocalPlayerId)
+                {
+                    Console.WriteLine($"[GameplayScene] Skipping local player {lobbyPlayer.PlayerId} ({lobbyPlayer.Name})");
+                    continue;
+                }
+
+                Console.WriteLine($"[GameplayScene] Creating remote player entity for {lobbyPlayer.Name} (ID: {lobbyPlayer.PlayerId}, Type: {lobbyPlayer.SelectedType})");
+
+                // Create remote player entity at center of map (will be updated by network sync)
+                int centerRow = _tilemap.Rows / 2;
+                int centerColumn = _tilemap.Columns / 2;
+                Vector2 remotePlayerStartPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
+
+                // Offset slightly so players don't spawn on top of each other
+                remotePlayerStartPos.X += lobbyPlayer.PlayerId * 50;
+
+                // Create network player entity (not owned by us)
+                var remotePlayerEntity = EntityManager.CreateNetworkPlayer(
+                    remotePlayerStartPos,
+                    PlayerIndex.Two, // Remote players use PlayerIndex.Two for now
+                    lobbyPlayer.SelectedType,
+                    lobbyPlayer.PlayerId,
+                    isOwned: false
+                );
+
+                // Register with network system
+                _networkMessageSystem?.RegisterNetworkEntity(remotePlayerEntity);
+
+                // Add bounds constraint
+                EntityManager.AddBoundsConstraint(remotePlayerEntity, _roomBounds, false);
+
+                Console.WriteLine($"[GameplayScene] Created remote player entity: EntityId={remotePlayerEntity.Id}, NetworkId={lobbyPlayer.PlayerId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameplayScene] Error creating existing remote players: {ex.Message}");
+        }
     }
 
     private void HandleChestUIInput(KeyboardState keyboardState, GamePadState gamepadState)
@@ -540,6 +710,13 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Unsubscribe<TeleportEvent>(OnTeleport);
         EventBus.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
+
+        // Clean up network event subscriptions (if multiplayer)
+        if (_isMultiplayer)
+        {
+            EventBus.Unsubscribe<NetworkPlayerJoinEvent>(OnNetworkPlayerJoin);
+            EventBus.Unsubscribe<NetworkPlayerLeaveEvent>(OnNetworkPlayerLeave);
+        }
 
         // Clean up multiplayer networking
         if (_isMultiplayer)

@@ -222,6 +222,17 @@ public class NetworkMessageSystem : IGameSystem
                 return;
             }
 
+            // IMPORTANT: Don't update entities that are owned by the local player
+            if (entity.HasComponent<NetworkComponent>())
+            {
+                var networkComp = entity.GetComponent<NetworkComponent>();
+                if (networkComp.IsOwned)
+                {
+                    // This is our own entity, don't apply remote updates
+                    return;
+                }
+            }
+
             // Apply transform updates
             if (entity.HasComponent<TransformComponent>())
             {
