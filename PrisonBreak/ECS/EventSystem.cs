@@ -31,7 +31,10 @@ public class EventBus
         var eventType = typeof(T);
         if (_handlers.TryGetValue(eventType, out var handlers))
         {
-            foreach (var handler in handlers)
+            // Create a copy of the handlers list to avoid collection modification issues
+            var handlersCopy = new List<Delegate>(handlers);
+            
+            foreach (var handler in handlersCopy)
             {
                 try
                 {

@@ -308,3 +308,60 @@ public struct ContainerComponent
         ContainerType = containerType;
     }
 }
+
+// Network Components
+
+/// <summary>
+/// Marks an entity for network synchronization
+/// Contains network ID and sync timing information
+/// </summary>
+public struct NetworkComponent
+{
+    public int NetworkId;           // Unique network identifier across all clients
+    public bool IsOwned;            // Does this client own/control this entity?
+    public float SyncInterval;      // How often to sync (seconds) - e.g., 0.05f = 20 FPS
+    public float LastSyncTime;      // When this entity was last synced
+    public bool SyncTransform;      // Should position/rotation be synced?
+    public bool SyncMovement;       // Should velocity be synced?
+    public bool SyncComponents;     // Should other components be synced?
+
+    public NetworkComponent(int networkId, bool isOwned = false, float syncInterval = 0.05f)
+    {
+        NetworkId = networkId;
+        IsOwned = isOwned;
+        SyncInterval = syncInterval;
+        LastSyncTime = 0f;
+        SyncTransform = true;
+        SyncMovement = true;
+        SyncComponents = false;
+    }
+}
+
+/// <summary>
+/// Defines ownership and authority over an entity
+/// Determines who can modify the entity's state
+/// </summary>
+public struct AuthorityComponent
+{
+    public int OwnerId;             // Player/client ID that owns this entity (-1 = server/host)
+    public bool IsServerOwned;      // Host has authority over this entity
+    public bool AllowClientPrediction; // Can clients predict this entity's movement?
+
+    public AuthorityComponent(int ownerId, bool isServerOwned = false, bool allowClientPrediction = false)
+    {
+        OwnerId = ownerId;
+        IsServerOwned = isServerOwned;
+        AllowClientPrediction = allowClientPrediction;
+    }
+
+    /// <summary>
+    /// Create server-owned authority (host controls this entity)
+    /// </summary>
+    public static AuthorityComponent ServerOwned => new(-1, true, false);
+
+    /// <summary>
+    /// Create player-owned authority (specific player controls this entity)
+    /// </summary>
+    public static AuthorityComponent PlayerOwned(int playerId, bool allowPrediction = true) 
+        => new(playerId, false, allowPrediction);
+}

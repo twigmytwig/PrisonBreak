@@ -14,12 +14,14 @@ public class StartMenuScene : Scene
     private MenuRenderSystem _menuRenderSystem;
 
     private Entity _titleEntity;
-    private Entity _startGameEntity;
+    private Entity _singlePlayerEntity;
+    private Entity _hostGameEntity;
+    private Entity _joinGameEntity;
     private Entity _exitGameEntity;
     private Entity _playerTypeEntity;
 
     private int _selectedIndex = 0;
-    private readonly string[] _menuItems = { "Start Game", "Exit" };
+    private readonly string[] _menuItems = { "Single Player", "Host Game", "Join Game", "Exit" };
     private PlayerType _selectedPlayerType = PlayerType.Prisoner;
     private bool _entitiesCreated = false;
 
@@ -92,24 +94,54 @@ public class StartMenuScene : Scene
             DrawOrder = 10
         });
 
-        // Create start game button
-        _startGameEntity = EntityManager.CreateEntity();
-        var startGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y - 20));
-        _startGameEntity.AddComponent(startGameTransform);
-        _startGameEntity.AddComponent(new MenuItemComponent(200, 40, "start_game")
+        // Create Single Player button
+        _singlePlayerEntity = EntityManager.CreateEntity();
+        var singlePlayerTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y - 20));
+        _singlePlayerEntity.AddComponent(singlePlayerTransform);
+        _singlePlayerEntity.AddComponent(new MenuItemComponent(200, 40, "single_player")
         {
             DrawOrder = 0
         });
-        _startGameEntity.AddComponent(new TextComponent("Start Game")
+        _singlePlayerEntity.AddComponent(new TextComponent("Single Player")
         {
             Color = Color.Yellow,
             Alignment = TextAlignment.TopLeft,
             DrawOrder = 10
         });
 
+        // Create Host Game button
+        _hostGameEntity = EntityManager.CreateEntity();
+        var hostGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 30));
+        _hostGameEntity.AddComponent(hostGameTransform);
+        _hostGameEntity.AddComponent(new MenuItemComponent(200, 40, "host_game")
+        {
+            DrawOrder = 0
+        });
+        _hostGameEntity.AddComponent(new TextComponent("Host Game")
+        {
+            Color = Color.White,
+            Alignment = TextAlignment.TopLeft,
+            DrawOrder = 10
+        });
+
+        // Create Join Game button
+        _joinGameEntity = EntityManager.CreateEntity();
+        var joinGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 80));
+        _joinGameEntity.AddComponent(joinGameTransform);
+        _joinGameEntity.AddComponent(new MenuItemComponent(200, 40, "join_game")
+        {
+            DrawOrder = 0
+        });
+        _joinGameEntity.AddComponent(new TextComponent("Join Game")
+        {
+            Color = Color.White,
+            Alignment = TextAlignment.TopLeft,
+            DrawOrder = 10
+        });
+
         // Create exit game button
         _exitGameEntity = EntityManager.CreateEntity();
-        var exitGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 30));
+        var exitGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 130));
         _exitGameEntity.AddComponent(exitGameTransform);
         _exitGameEntity.AddComponent(new MenuItemComponent(200, 40, "exit_game")
         {
@@ -122,7 +154,7 @@ public class StartMenuScene : Scene
             DrawOrder = 10
         });
 
-        Console.WriteLine($"Created entities: Title={_titleEntity?.Id}, PlayerType={_playerTypeEntity?.Id}, Start={_startGameEntity?.Id}, Exit={_exitGameEntity?.Id}");
+        Console.WriteLine($"Created entities: Title={_titleEntity?.Id}, PlayerType={_playerTypeEntity?.Id}, SinglePlayer={_singlePlayerEntity?.Id}, Host={_hostGameEntity?.Id}, Join={_joinGameEntity?.Id}, Exit={_exitGameEntity?.Id}");
         _entitiesCreated = true;
     }
 
@@ -132,7 +164,7 @@ public class StartMenuScene : Scene
         if (!_entitiesCreated && IsContentLoaded)
         {
             CreateMenuEntities();
-            if (_startGameEntity != null && _exitGameEntity != null)
+            if (_singlePlayerEntity != null && _exitGameEntity != null)
             {
                 UpdateMenuSelection();
                 UpdatePlayerTypeDisplay();
@@ -179,27 +211,22 @@ public class StartMenuScene : Scene
 
     private void UpdateMenuSelection()
     {
-        // Update start game button selection
-        if (_startGameEntity != null && _startGameEntity.HasComponent<MenuItemComponent>())
+        // Array of menu entities for easy iteration
+        var menuEntities = new[] { _singlePlayerEntity, _hostGameEntity, _joinGameEntity, _exitGameEntity };
+        
+        for (int i = 0; i < menuEntities.Length; i++)
         {
-            ref var startMenuItem = ref _startGameEntity.GetComponent<MenuItemComponent>();
-            startMenuItem.IsSelected = _selectedIndex == 0;
-            if (_startGameEntity.HasComponent<TextComponent>())
+            var entity = menuEntities[i];
+            if (entity != null && entity.HasComponent<MenuItemComponent>())
             {
-                ref var textComp = ref _startGameEntity.GetComponent<TextComponent>();
-                textComp.Color = _selectedIndex == 0 ? Color.Yellow : Color.White;
-            }
-        }
-
-        // Update exit game button selection
-        if (_exitGameEntity != null && _exitGameEntity.HasComponent<MenuItemComponent>())
-        {
-            ref var exitMenuItem = ref _exitGameEntity.GetComponent<MenuItemComponent>();
-            exitMenuItem.IsSelected = _selectedIndex == 1;
-            if (_exitGameEntity.HasComponent<TextComponent>())
-            {
-                ref var exitText = ref _exitGameEntity.GetComponent<TextComponent>();
-                exitText.Color = _selectedIndex == 1 ? Color.Yellow : Color.White;
+                ref var menuItem = ref entity.GetComponent<MenuItemComponent>();
+                menuItem.IsSelected = _selectedIndex == i;
+                
+                if (entity.HasComponent<TextComponent>())
+                {
+                    ref var textComp = ref entity.GetComponent<TextComponent>();
+                    textComp.Color = _selectedIndex == i ? Color.Yellow : Color.White;
+                }
             }
         }
     }
@@ -217,12 +244,23 @@ public class StartMenuScene : Scene
     {
         switch (_selectedIndex)
         {
-            case 0: // Start Game
+            case 0: // Single Player
                 var gameStartData = new GameStartData(_selectedPlayerType, PlayerIndex.One);
                 EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.Gameplay, gameStartData));
                 break;
 
-            case 1: // Exit
+            case 1: // Host Game
+                var hostLobbyData = new LobbyStartData(isHost: true, "Host", _selectedPlayerType);
+                EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.Lobby, hostLobbyData));
+                break;
+
+            case 2: // Join Game
+                // For now, use localhost. Later we'll add IP input UI
+                var joinLobbyData = new LobbyStartData(isHost: false, "Player", _selectedPlayerType, "127.0.0.1");
+                EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.Lobby, joinLobbyData));
+                break;
+
+            case 3: // Exit
                 Environment.Exit(0);
                 break;
         }
@@ -234,7 +272,7 @@ public class StartMenuScene : Scene
         _selectedIndex = 0;
         _selectedPlayerType = PlayerType.Prisoner;
 
-        if (IsContentLoaded && _startGameEntity != null && _exitGameEntity != null)
+        if (IsContentLoaded && _singlePlayerEntity != null && _exitGameEntity != null)
         {
             UpdateMenuSelection();
             UpdatePlayerTypeDisplay();

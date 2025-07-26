@@ -6,6 +6,7 @@ using PrisonBreak.Core.Graphics;
 using PrisonBreak.Config;
 using PrisonBreak.ECS;
 using PrisonBreak.ECS.Systems;
+using PrisonBreak.Network;
 
 namespace PrisonBreak.Scenes;
 
@@ -30,8 +31,13 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private bool _gameInitialized;
     private bool _tilemapSet;
 
-    // Data from start menu
+    // Data from start menu or lobby
     private GameStartData? _gameStartData;
+    
+    // Multiplayer networking (if applicable)
+    private NetworkManager _networkManager;
+    private NetworkEventBridge _networkEventBridge;
+    private bool _isMultiplayer = false;
 
     // Chest UI state
     private bool _isChestUIOpen = false;
@@ -50,7 +56,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     }
 
     /// <summary>
-    /// Receive data from the start menu scene
+    /// Receive data from the start menu or lobby scene
     /// </summary>
     public void ReceiveTransitionData(object data)
     {
@@ -58,6 +64,23 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         {
             _gameStartData = startData;
             Console.WriteLine($"GameplayScene received start data: PlayerType={startData.PlayerType}, PlayerIndex={startData.PlayerIndex}");
+        }
+        else if (data is MultiplayerGameStartData multiplayerData)
+        {
+            // Convert multiplayer data to standard game data
+            _gameStartData = new GameStartData(multiplayerData.PlayerType, multiplayerData.PlayerIndex);
+            _isMultiplayer = multiplayerData.IsMultiplayer;
+            
+            // Get NetworkManager from lobby scene
+            _networkManager = multiplayerData.NetworkManager as NetworkManager;
+            _networkEventBridge = multiplayerData.NetworkEventBridge as NetworkEventBridge;
+            
+            Console.WriteLine($"GameplayScene received multiplayer data: PlayerType={multiplayerData.PlayerType}, PlayerIndex={multiplayerData.PlayerIndex}, IsHost={multiplayerData.IsHost}, IsMultiplayer={_isMultiplayer}");
+            
+            if (_networkManager != null)
+            {
+                Console.WriteLine($"[GameplayScene] NetworkManager received, connected: {_networkManager.IsConnected}");
+            }
         }
     }
 
@@ -170,6 +193,12 @@ public class GameplayScene : Scene, ITransitionDataReceiver
 
         // TODO: Disable player input when chest UI is open by setting PlayerInputComponent.IsActive = false
         // For now, chest UI input is handled separately in HandleChestUIInput()
+
+        // Update network manager if in multiplayer mode
+        if (_isMultiplayer && _networkManager != null)
+        {
+            _networkManager.Update();
+        }
 
         // Call base update which runs SystemManager.Update (world continues running)
         base.Update(gameTime);
@@ -511,6 +540,14 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Unsubscribe<TeleportEvent>(OnTeleport);
         EventBus.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
+
+        // Clean up multiplayer networking
+        if (_isMultiplayer)
+        {
+            Console.WriteLine("[GameplayScene] Cleaning up multiplayer networking");
+            _networkEventBridge?.Dispose();
+            _networkManager?.Dispose();
+        }
 
         base.OnExit();
     }
