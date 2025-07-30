@@ -6,6 +6,7 @@ using PrisonBreak.Core.Graphics;
 using PrisonBreak.Config;
 using PrisonBreak.ECS;
 using PrisonBreak.ECS.Systems;
+using PrisonBreak.Managers;
 
 namespace PrisonBreak.Scenes;
 
@@ -24,6 +25,8 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private InventoryUIRenderSystem _inventoryUIRenderSystem;
     private InteractionSystem _interactionSystem;
     private ChestUIRenderSystem _chestUIRenderSystem;
+    private NetworkManager _networkManager;
+    private NetworkSyncSystem _networkSyncSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -73,6 +76,19 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _inventoryUIRenderSystem = new InventoryUIRenderSystem();
         _interactionSystem = new InteractionSystem();
         _chestUIRenderSystem = new ChestUIRenderSystem();
+        _networkSyncSystem = new NetworkSyncSystem();
+        // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
+        try
+        {
+            _networkManager = NetworkManager.Instance;
+            _networkManager.UpdateEntityManager(EntityManager); // Update to use this scene's EntityManager
+            Console.WriteLine($"Debug: Using existing NetworkManager, mode = {_networkManager.CurrentGameMode}");
+        }
+        catch (InvalidOperationException)
+        {
+            _networkManager = null;  // Single-player mode
+            Console.WriteLine("Debug: No NetworkManager found - single-player mode");
+        }
 
         // Set up system dependencies (same as Game1)
         _inputSystem.SetEntityManager(EntityManager);
@@ -100,6 +116,9 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _chestUIRenderSystem.SetEntityManager(EntityManager);
         _chestUIRenderSystem.SetEventBus(EventBus);
 
+        _networkSyncSystem.SetEntityManager(EntityManager);
+        _networkSyncSystem.SetEventBus(EventBus);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -107,6 +126,11 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_movementSystem);
         SystemManager.AddSystem(_collisionSystem);
         SystemManager.AddSystem(_inventorySystem);
+        if (_networkManager != null) // Only add NetworkManager in multiplayer mode
+        {
+            SystemManager.AddSystem(_networkManager); // Add network manager after game logic systems
+            SystemManager.AddSystem(_networkSyncSystem); // Add network sync system after network manager
+        }
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
         SystemManager.AddSystem(_chestUIRenderSystem); // Render chest UI on top
@@ -209,35 +233,104 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         // Set up tile-based collision map for movement system (same as Game1)
         _movementSystem.SetCollisionMap(_tilemap, Vector2.Zero);
 
-        // Create player entity (enhanced with start menu data)
+        // Calculate player spawn positions
         int centerRow = _tilemap.Rows / 2;
         int centerColumn = _tilemap.Columns / 2;
-        Vector2 playerStartPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
+        Vector2 baseSpawnPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
 
-        // Use data from start menu if available, otherwise default to prisoner
-        PlayerType playerType = _gameStartData?.PlayerType ?? PlayerType.Prisoner;
-        PlayerIndex playerIndex = _gameStartData?.PlayerIndex ?? PlayerIndex.One;
+        // Check if this is multiplayer mode
+        bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.SinglePlayer;
+        Entity localPlayerEntity = null;
 
-        var playerEntity = EntityManager.CreatePlayer(playerStartPos, playerIndex, playerType);
+        if (isMultiplayer && _gameStartData?.AllPlayersData != null)
+        {
+            // Multiplayer: Create all player entities from AllPlayersData
+            Console.WriteLine($"[GameplayScene] Multiplayer mode - LocalPlayerId = {_gameStartData.Value.LocalPlayerId}");
 
-        // Create inventory UI for the player
-        int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
-        EntityManager.CreateInventoryUIForPlayer(playerEntity, true, screenHeight);
+            for (int i = 0; i < _gameStartData.Value.AllPlayersData.Length; i++)
+            {
+                var playerData = _gameStartData.Value.AllPlayersData[i];
 
-        // Give cop players their starting key item (after UI is created for proper event handling)
-        if (playerType == PlayerType.Cop)
+                // Calculate spawn position (ensure players spawn in safe, open areas)
+                Vector2 playerSpawnPos;
+                if (i == 0)
+                {
+                    // First player spawns at a safe location (left side of center)
+                    playerSpawnPos = new Vector2(baseSpawnPos.X - 128, baseSpawnPos.Y);
+                }
+                else
+                {
+                    // Second player spawns at a safe location (right side of center)  
+                    playerSpawnPos = new Vector2(baseSpawnPos.X + 250, baseSpawnPos.Y);
+                }
+
+                // Determine if this is the local player
+                bool isLocalPlayer = playerData.PlayerId == _gameStartData.Value.LocalPlayerId;
+
+                // Local player always gets PlayerIndex.One for keyboard input, remote players get their assigned index
+                PlayerIndex playerIndex = isLocalPlayer ? PlayerIndex.One : playerData.PlayerIndex;
+                Console.WriteLine($"[GameplayScene] Player {playerData.PlayerId} assigned PlayerIndex: {playerIndex} (original: {playerData.PlayerIndex}, isLocal: {isLocalPlayer})");
+                var playerEntity = EntityManager.CreatePlayer(playerSpawnPos, playerIndex, playerData.PlayerType);
+
+                // Add network component for all players
+                playerEntity.AddComponent(new NetworkComponent(
+                    networkId: playerData.PlayerId,
+                    authority: PrisonBreak.Multiplayer.Core.NetworkConfig.NetworkAuthority.Client,
+                    syncTransform: true,
+                    syncMovement: true,
+                    syncInventory: false,
+                    ownerId: playerData.PlayerId
+                ));
+
+                if (isLocalPlayer)
+                {
+                    localPlayerEntity = playerEntity;
+                    Console.WriteLine($"[GameplayScene] Local player created with PlayerIndex: {playerIndex}");
+                    Console.WriteLine($"[GameplayScene] Local player has PlayerInputComponent: {playerEntity.HasComponent<PlayerInputComponent>()}");
+
+                    // Create inventory UI only for local player
+                    int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
+                    EntityManager.CreateInventoryUIForPlayer(playerEntity, true, screenHeight);
+                }
+                else
+                {
+                    // Remove PlayerInputComponent from remote players (they shouldn't be controllable locally)
+                    if (playerEntity.HasComponent<PlayerInputComponent>())
+                    {
+                        playerEntity.RemoveComponent<PlayerInputComponent>();
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Single-player: Create only local player (existing logic)
+            PlayerType playerType = _gameStartData?.PlayerType ?? PlayerType.Prisoner;
+            PlayerIndex playerIndex = _gameStartData?.PlayerIndex ?? PlayerIndex.One;
+
+            localPlayerEntity = EntityManager.CreatePlayer(baseSpawnPos, playerIndex, playerType);
+            Console.WriteLine($"[GameplayScene] Single-player mode");
+
+            // Create inventory UI for single player
+            int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
+            EntityManager.CreateInventoryUIForPlayer(localPlayerEntity, true, screenHeight);
+        }
+
+        // Give cop players their starting key item (only for local player to avoid duplicates)
+        if (localPlayerEntity != null && localPlayerEntity.HasComponent<PlayerTypeComponent>() &&
+            localPlayerEntity.GetComponent<PlayerTypeComponent>().Type == PlayerType.Cop)
         {
             try
             {
                 var keyItem = EntityManager.CreateKey();
-                bool keyAdded = _inventorySystem.TryAddItem(playerEntity, keyItem);
+                bool keyAdded = _inventorySystem.TryAddItem(localPlayerEntity, keyItem);
                 if (keyAdded)
                 {
-                    Console.WriteLine($"Human cop player {playerEntity.Id} received starting key");
+                    Console.WriteLine($"Human cop player {localPlayerEntity.Id} received starting key");
                 }
                 else
                 {
-                    Console.WriteLine($"Warning: Could not add starting key to cop player {playerEntity.Id} inventory");
+                    Console.WriteLine($"Warning: Could not add starting key to cop player {localPlayerEntity.Id} inventory");
                 }
             }
             catch (Exception ex)
@@ -270,7 +363,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         }
 
         // Add bounds constraints to all entities (same as Game1)
-        EntityManager.AddBoundsConstraint(playerEntity, _roomBounds, false); // Player clamps
+        if (localPlayerEntity != null)
+        {
+            EntityManager.AddBoundsConstraint(localPlayerEntity, _roomBounds, false); // Player clamps
+        }
         EntityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
         EntityManager.AddBoundsConstraint(cop2, _roomBounds, true);
 
@@ -288,7 +384,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Subscribe<ChestUICloseEvent>(OnChestUIClose);
 
-        Console.WriteLine($"GameplayScene initialized with PlayerType: {playerType}");
+        Console.WriteLine($"[GameplayScene] Initialization complete");
     }
 
     /// <summary>
@@ -511,6 +607,17 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Unsubscribe<TeleportEvent>(OnTeleport);
         EventBus.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
+
+        // Clean up multiplayer entities if in multiplayer mode
+        if (_networkManager != null && _networkManager.CurrentGameMode != PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.SinglePlayer)
+        {
+            // Log multiplayer entity cleanup
+            var networkedEntities = EntityManager.GetEntitiesWith<NetworkComponent>();
+            Console.WriteLine($"[GameplayScene] Cleaning up {networkedEntities.Count()} networked entities on scene exit");
+
+            // EntityManager.Clear() in base.OnExit() will handle actual cleanup
+            // This is just for logging and future enhanced cleanup if needed
+        }
 
         base.OnExit();
     }

@@ -31,9 +31,18 @@ public static class NetworkConfig
         ItemTransfer = 31,
         
         // Connection management
-        PlayerJoin = 100,
-        PlayerLeave = 101,
-        GameState = 102
+        Welcome = 100,
+        PlayerJoin = 101,
+        PlayerLeave = 102,
+        GameState = 103,
+        
+        // Lobby system
+        PlayerJoinLobby = 111,
+        PlayerLeaveLobby = 112,
+        PlayerCharacterSelect = 113,
+        PlayerReadyState = 114,
+        LobbyState = 115,
+        GameStart = 116
     }
     
     // Network authority levels

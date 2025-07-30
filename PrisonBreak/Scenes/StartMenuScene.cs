@@ -15,11 +15,12 @@ public class StartMenuScene : Scene
 
     private Entity _titleEntity;
     private Entity _startGameEntity;
+    private Entity _multiplayerEntity;
     private Entity _exitGameEntity;
     private Entity _playerTypeEntity;
 
     private int _selectedIndex = 0;
-    private readonly string[] _menuItems = { "Start Game", "Exit" };
+    private readonly string[] _menuItems = { "Start Game", "Multiplayer", "Exit" };
     private PlayerType _selectedPlayerType = PlayerType.Prisoner;
     private bool _entitiesCreated = false;
 
@@ -107,9 +108,24 @@ public class StartMenuScene : Scene
             DrawOrder = 10
         });
 
+        // Create multiplayer button
+        _multiplayerEntity = EntityManager.CreateEntity();
+        var multiplayerTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 30));
+        _multiplayerEntity.AddComponent(multiplayerTransform);
+        _multiplayerEntity.AddComponent(new MenuItemComponent(200, 40, "multiplayer")
+        {
+            DrawOrder = 0
+        });
+        _multiplayerEntity.AddComponent(new TextComponent("Multiplayer")
+        {
+            Color = Color.White,
+            Alignment = TextAlignment.TopLeft,
+            DrawOrder = 10
+        });
+
         // Create exit game button
         _exitGameEntity = EntityManager.CreateEntity();
-        var exitGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 30));
+        var exitGameTransform = new TransformComponent(new Vector2(screenCenter.X - 100, screenCenter.Y + 80));
         _exitGameEntity.AddComponent(exitGameTransform);
         _exitGameEntity.AddComponent(new MenuItemComponent(200, 40, "exit_game")
         {
@@ -122,7 +138,7 @@ public class StartMenuScene : Scene
             DrawOrder = 10
         });
 
-        Console.WriteLine($"Created entities: Title={_titleEntity?.Id}, PlayerType={_playerTypeEntity?.Id}, Start={_startGameEntity?.Id}, Exit={_exitGameEntity?.Id}");
+        Console.WriteLine($"Created entities: Title={_titleEntity?.Id}, PlayerType={_playerTypeEntity?.Id}, Start={_startGameEntity?.Id}, Multiplayer={_multiplayerEntity?.Id}, Exit={_exitGameEntity?.Id}");
         _entitiesCreated = true;
     }
 
@@ -132,7 +148,7 @@ public class StartMenuScene : Scene
         if (!_entitiesCreated && IsContentLoaded)
         {
             CreateMenuEntities();
-            if (_startGameEntity != null && _exitGameEntity != null)
+            if (_startGameEntity != null && _multiplayerEntity != null && _exitGameEntity != null)
             {
                 UpdateMenuSelection();
                 UpdatePlayerTypeDisplay();
@@ -191,15 +207,27 @@ public class StartMenuScene : Scene
             }
         }
 
+        // Update multiplayer button selection
+        if (_multiplayerEntity != null && _multiplayerEntity.HasComponent<MenuItemComponent>())
+        {
+            ref var multiplayerMenuItem = ref _multiplayerEntity.GetComponent<MenuItemComponent>();
+            multiplayerMenuItem.IsSelected = _selectedIndex == 1;
+            if (_multiplayerEntity.HasComponent<TextComponent>())
+            {
+                ref var textComp = ref _multiplayerEntity.GetComponent<TextComponent>();
+                textComp.Color = _selectedIndex == 1 ? Color.Yellow : Color.White;
+            }
+        }
+
         // Update exit game button selection
         if (_exitGameEntity != null && _exitGameEntity.HasComponent<MenuItemComponent>())
         {
             ref var exitMenuItem = ref _exitGameEntity.GetComponent<MenuItemComponent>();
-            exitMenuItem.IsSelected = _selectedIndex == 1;
+            exitMenuItem.IsSelected = _selectedIndex == 2;
             if (_exitGameEntity.HasComponent<TextComponent>())
             {
                 ref var exitText = ref _exitGameEntity.GetComponent<TextComponent>();
-                exitText.Color = _selectedIndex == 1 ? Color.Yellow : Color.White;
+                exitText.Color = _selectedIndex == 2 ? Color.Yellow : Color.White;
             }
         }
     }
@@ -222,7 +250,11 @@ public class StartMenuScene : Scene
                 EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.Gameplay, gameStartData));
                 break;
 
-            case 1: // Exit
+            case 1: // Multiplayer
+                EventBus.Send(new SceneTransitionEvent(SceneType.StartMenu, SceneType.MultiplayerLobby));
+                break;
+
+            case 2: // Exit
                 Environment.Exit(0);
                 break;
         }
@@ -234,7 +266,7 @@ public class StartMenuScene : Scene
         _selectedIndex = 0;
         _selectedPlayerType = PlayerType.Prisoner;
 
-        if (IsContentLoaded && _startGameEntity != null && _exitGameEntity != null)
+        if (IsContentLoaded && _startGameEntity != null && _multiplayerEntity != null && _exitGameEntity != null)
         {
             UpdateMenuSelection();
             UpdatePlayerTypeDisplay();

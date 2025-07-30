@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -18,6 +19,7 @@ public class SystemManager
 
     public void AddSystem(IGameSystem system)
     {
+        Console.WriteLine($"SystemManager: Adding system {system.GetType().Name}");
         _systems.Add(system);
         
         if (_initialized)
