@@ -17,6 +17,7 @@ public static class NetworkConfig
         Transform = 1,
         Movement = 2,
         PlayerInput = 3,
+        AIState = 4,
         
         // Entity management
         EntitySpawn = 10,

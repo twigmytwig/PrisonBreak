@@ -7,6 +7,8 @@ using PrisonBreak.Config;
 using PrisonBreak.ECS;
 using PrisonBreak.ECS.Systems;
 using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
 
 namespace PrisonBreak.Scenes;
 
@@ -27,6 +29,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private ChestUIRenderSystem _chestUIRenderSystem;
     private NetworkManager _networkManager;
     private NetworkSyncSystem _networkSyncSystem;
+    private NetworkAISystem _networkAISystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -77,6 +80,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _interactionSystem = new InteractionSystem();
         _chestUIRenderSystem = new ChestUIRenderSystem();
         _networkSyncSystem = new NetworkSyncSystem();
+        _networkAISystem = new NetworkAISystem();
         // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
         try
         {
@@ -119,6 +123,9 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkSyncSystem.SetEntityManager(EntityManager);
         _networkSyncSystem.SetEventBus(EventBus);
 
+        _networkAISystem.SetEntityManager(EntityManager);
+        _networkAISystem.SetEventBus(EventBus);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -130,6 +137,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         {
             SystemManager.AddSystem(_networkManager); // Add network manager after game logic systems
             SystemManager.AddSystem(_networkSyncSystem); // Add network sync system after network manager
+            SystemManager.AddSystem(_networkAISystem); // Add AI sync system after network sync
         }
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
@@ -339,27 +347,66 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             }
         }
 
-        // Create cop entities (same as Game1)
-        Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
-        Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
-
-        var cop1 = EntityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
-        var cop2 = EntityManager.CreateCop(copStartPos2, AIBehavior.Wander);
-
-        // Give AI cops their starting key items
-        try
+        // Create AI cop entities - only host creates, clients receive via network
+        if (_networkManager == null || _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
         {
-            var keyItem1 = EntityManager.CreateKey();
-            var keyItem2 = EntityManager.CreateKey();
+            // Host or single-player: Create AI cops and broadcast to clients
+            Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
+            Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
 
-            _inventorySystem.TryAddItem(cop1, keyItem1);
-            _inventorySystem.TryAddItem(cop2, keyItem2);
+            var cop1 = EntityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
+            var cop2 = EntityManager.CreateCop(copStartPos2, AIBehavior.Wander);
+            
+            // Override CopTag with deterministic IDs for network synchronization
+            cop1.AddComponent(new CopTag(1001)); // Deterministic cop ID
+            cop2.AddComponent(new CopTag(1002)); // Deterministic cop ID
 
-            Console.WriteLine($"AI cops {cop1.Id} and {cop2.Id} received starting keys");
+            // In multiplayer, send entity spawn messages to clients
+            if (_networkManager != null && _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+            {
+                var spawn1 = new EntitySpawnMessage(1001, "cop", copStartPos1, _roomBounds, AIBehavior.Patrol.ToString());
+                var spawn2 = new EntitySpawnMessage(1002, "cop", copStartPos2, _roomBounds, AIBehavior.Wander.ToString());
+                
+                _networkManager.SendEntitySpawn(spawn1);
+                _networkManager.SendEntitySpawn(spawn2);
+                
+                Console.WriteLine("[GameplayScene] Host sent AI cop spawn messages to clients");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"Warning: Could not create starting keys for AI cops: {ex.Message}");
+            // Client: AI cops will be created when spawn messages are received from host
+            Console.WriteLine("[GameplayScene] Client waiting for AI cop spawn messages from host");
+        }
+
+        // Give AI cops their starting key items (only on host/single-player)
+        if (_networkManager == null || _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            try
+            {
+                // Find the AI cops by their deterministic IDs
+                var aiCopsForKeys = EntityManager.GetEntitiesWith<CopTag, AIComponent>()
+                    .Where(e => !e.HasComponent<PlayerTag>())
+                    .ToList();
+
+                foreach (var cop in aiCopsForKeys)
+                {
+                    var keyItem = EntityManager.CreateKey();
+                    bool keyAdded = _inventorySystem.TryAddItem(cop, keyItem);
+                    if (keyAdded)
+                    {
+                        Console.WriteLine($"AI cop {cop.GetComponent<CopTag>().CopId} received starting key");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Warning: Could not add starting key to AI cop {cop.GetComponent<CopTag>().CopId} inventory");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not create starting keys for AI cops: {ex.Message}");
+            }
         }
 
         // Add bounds constraints to all entities (same as Game1)
@@ -367,8 +414,15 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         {
             EntityManager.AddBoundsConstraint(localPlayerEntity, _roomBounds, false); // Player clamps
         }
-        EntityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
-        EntityManager.AddBoundsConstraint(cop2, _roomBounds, true);
+        
+        // Add bounds constraints to AI cops (only if they exist on this client)
+        var aiCops = EntityManager.GetEntitiesWith<CopTag, AIComponent>()
+            .Where(e => !e.HasComponent<PlayerTag>())
+            .ToList();
+        foreach (var cop in aiCops)
+        {
+            EntityManager.AddBoundsConstraint(cop, _roomBounds, true); // Cops reflect
+        }
 
         // Create test items and chests for interaction system testing
         CreateTestItems();

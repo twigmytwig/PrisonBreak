@@ -103,6 +103,21 @@ if (entity.HasComponent<CollisionComponent>())
 |-----------|---------|------------|----------|
 | `NetworkComponent` | Network synchronization | `int NetworkId`, `NetworkConfig.NetworkAuthority Authority`, `bool SyncTransform`, `bool SyncMovement`, `bool SyncInventory`, `int OwnerId` | `PrisonBreak.ECS` (Components.cs) |
 
+### Networking Systems (Multiplayer)
+| System | Purpose | Update Rate | Authority |
+|--------|---------|-------------|-----------|
+| `NetworkManager` | Core networking coordination | Event-driven | Host/Client |
+| `NetworkSyncSystem` | Player position synchronization | 20Hz | Client (for own player) |
+| `NetworkAISystem` | AI cop behavior synchronization | 10Hz | Host only |
+
+### Network Messages
+| Message Type | Purpose | Authority | Content |
+|--------------|---------|-----------|---------|
+| `TransformMessage` | Position/rotation sync | Client → Host → Clients | Position, Rotation, Scale |
+| `AIStateMessage` | AI behavior sync | Host → Clients | Behavior, PatrolDirection, StateTimer, TargetPosition |
+| `EntitySpawnMessage` | Entity creation sync | Host → Clients | EntityType, Position, NetworkID, RoomBounds |
+| `CollisionMessage` | Collision result sync | Host → Clients | PlayerID, CopID, NewPosition, NewPatrolDirection |
+
 ### Menu/UI Components (NEW)
 | Component | Purpose | Key Fields |
 |-----------|---------|------------|
@@ -116,11 +131,13 @@ if (entity.HasComponent<CollisionComponent>())
 #### Gameplay Scene
 ```
 1. ComponentInputSystem    - Process player input → events
-2. ComponentMovementSystem - Apply movement from events + tile collision detection
+2. ComponentMovementSystem - Apply movement from events + tile collision detection  
 3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
 4. InventorySystem         - Manage player inventories and item interactions
 5. NetworkManager          - Handle multiplayer networking (if enabled)
-6. ComponentRenderSystem   - Draw everything
+6. NetworkSyncSystem       - Sync player positions (20Hz) 
+7. NetworkAISystem         - Sync AI behavior and positions (10Hz)
+8. ComponentRenderSystem   - Draw everything
 ```
 
 #### Start Menu Scene (NEW)
@@ -298,26 +315,34 @@ if (itemInSlot != null && itemInSlot.HasComponent<ItemComponent>())
 ```csharp
 using PrisonBreak.Managers;
 using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
 
 // Create networked player entity
 var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
 player.AddComponent(new NetworkComponent(networkId: 1, NetworkConfig.NetworkAuthority.Client, ownerId: playerId));
 
-// Create networked chest (server authority, inventory sync only)
-var chest = entityManager.CreateEntity();
-chest.AddComponent(new TransformComponent(position));
-chest.AddComponent(new ContainerComponent(maxItems: 6));
-chest.AddComponent(new NetworkComponent(networkId: 2, NetworkConfig.NetworkAuthority.Server, 
-    syncTransform: false,  // Chests don't move
-    syncMovement: false,   // No physics
-    syncInventory: true,   // Sync inventory changes
-    ownerId: -1));         // Server-owned
+// Create networked AI cop (host authority)
+var aiCop = entityManager.CreateCop(position, AIBehavior.Patrol);
+aiCop.AddComponent(new CopTag(1001)); // Deterministic network ID
 
-// NetworkManager integration (✅ IMPLEMENTED):
-// - Added to GameplayScene SystemManager
-// - Uses NetworkClient.cs and NetworkServer.cs for actual networking
-// - Converts events to network messages with game mode filtering
-// - Supports SinglePlayer/LocalHost/Client modes seamlessly
+// Send entity spawn to clients (host only)
+if (networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+{
+    var spawnMessage = new EntitySpawnMessage(1001, "cop", position, roomBounds, "Patrol");
+    networkManager.SendEntitySpawn(spawnMessage);
+}
+
+// AI Synchronization (✅ IMPLEMENTED):
+// - NetworkAISystem syncs AI behavior at 10Hz from host to clients
+// - AIStateMessage contains behavior, patrol direction, targets
+// - Only AI cops synced (player cops excluded via filtering)
+// - Collision events networked with authoritative result broadcasting
+
+// Collision Networking (✅ IMPLEMENTED):
+// - Host processes all collisions authoritatively
+// - CollisionMessage broadcasts teleportation results
+// - Clients apply collision results from host
+// - Prevents collision desync between clients
 ```
 
 ## 🔧 System Manager Usage

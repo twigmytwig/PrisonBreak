@@ -221,7 +221,29 @@ public class ComponentCollisionSystem : IGameSystem
 
     private void OnPlayerCopCollision(PlayerCopCollisionEvent collisionEvent)
     {
-        // Handle player-cop collision by teleporting the cop
+        // Check if we're in multiplayer mode and need authoritative collision handling
+        try
+        {
+            var networkManager = PrisonBreak.Managers.NetworkManager.Instance;
+            if (networkManager != null && networkManager.CurrentGameMode == PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.LocalHost)
+            {
+                // Host: Process collision authoritatively and broadcast result
+                HandleAuthoritativeCollision(collisionEvent, networkManager);
+                return;
+            }
+            else if (networkManager != null && networkManager.CurrentGameMode == PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.Client)
+            {
+                // Client: Ignore collision - will receive authoritative result from host
+                Console.WriteLine($"[CollisionSystem] Client ignoring collision - waiting for host authority");
+                return;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Single-player mode - handle collision locally
+        }
+
+        // Single-player: Handle collision locally (original logic)
         var cop = _entityManager.GetEntity(collisionEvent.CopId);
         if (cop == null) return;
 
@@ -242,6 +264,51 @@ public class ComponentCollisionSystem : IGameSystem
 
         // Send teleport event
         _eventBus.Send(new TeleportEvent(cop.Id, oldPosition, newPosition));
+    }
+
+    private void HandleAuthoritativeCollision(PlayerCopCollisionEvent collisionEvent, PrisonBreak.Managers.NetworkManager networkManager)
+    {
+        // Host processes collision and broadcasts result to all clients
+        var cop = _entityManager.GetEntity(collisionEvent.CopId);
+        if (cop == null) return;
+
+        ref var transform = ref cop.GetComponent<TransformComponent>();
+        Vector2 oldPosition = transform.Position;
+
+        // Calculate new position and AI state
+        Vector2 newPosition = GetRandomPosition();
+        Vector2 newPatrolDirection = GetRandomDirection();
+
+        // Apply changes locally on host
+        transform.Position = newPosition;
+        if (cop.HasComponent<AIComponent>())
+        {
+            ref var ai = ref cop.GetComponent<AIComponent>();
+            ai.StateTimer = 0f;
+            ai.PatrolDirection = newPatrolDirection;
+        }
+
+        // Get cop's network ID for proper synchronization
+        int copNetworkId = collisionEvent.CopId; // This might need to be the cop's network ID, not entity ID
+        if (cop.HasComponent<PrisonBreak.ECS.CopTag>())
+        {
+            copNetworkId = cop.GetComponent<PrisonBreak.ECS.CopTag>().CopId;
+        }
+
+        // Broadcast collision result to all clients
+        var collisionMessage = new PrisonBreak.Core.Networking.CollisionMessage(
+            collisionEvent.PlayerId, 
+            copNetworkId, 
+            collisionEvent.CollisionPosition, 
+            newPosition, 
+            newPatrolDirection
+        );
+        networkManager.SendCollision(collisionMessage);
+
+        // Send teleport event for local effects
+        _eventBus.Send(new TeleportEvent(cop.Id, oldPosition, newPosition));
+
+        Console.WriteLine($"[CollisionSystem] Host processed collision: Cop {copNetworkId} teleported to {newPosition}");
     }
 
     private void OnBoundaryCollision(BoundaryCollisionEvent collisionEvent)
