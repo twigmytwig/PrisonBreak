@@ -102,6 +102,7 @@ if (entity.HasComponent<CollisionComponent>())
 | Component | Purpose | Key Fields | Location |
 |-----------|---------|------------|----------|
 | `NetworkComponent` | Network synchronization | `int NetworkId`, `NetworkConfig.NetworkAuthority Authority`, `bool SyncTransform`, `bool SyncMovement`, `bool SyncInventory`, `int OwnerId` | `PrisonBreak.ECS` (Components.cs) |
+| `InterpolationComponent` **NEW** | Smooth movement interpolation | `Vector2 PreviousPosition`, `Vector2 TargetPosition`, `double InterpolationStartTime`, `double NetworkUpdateInterval`, `bool HasValidTarget` | `PrisonBreak.ECS` (Components.cs) |
 
 ### Networking Systems (Multiplayer)
 | System | Purpose | Update Rate | Authority |
@@ -110,6 +111,7 @@ if (entity.HasComponent<CollisionComponent>())
 | `NetworkSyncSystem` | Player position synchronization | 20Hz | Client (for own player) |
 | `NetworkAISystem` | AI cop behavior synchronization | 10Hz | Host only |
 | `NetworkInventorySystem` | Item pickup and chest transfer coordination | Event-driven | Host authoritative |
+| `NetworkInterpolationSystem` **NEW** | Smooth movement interpolation | 60fps | All clients (remote entities only) |
 
 ### Network Messages
 | Message Type | Purpose | Authority | Content |
@@ -134,14 +136,15 @@ if (entity.HasComponent<CollisionComponent>())
 
 #### Gameplay Scene
 ```
-1. ComponentInputSystem    - Process player input → events
-2. ComponentMovementSystem - Apply movement from events + tile collision detection  
-3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
-4. InventorySystem         - Manage player inventories and item interactions
-5. NetworkManager          - Handle multiplayer networking (if enabled)
-6. NetworkSyncSystem       - Sync player positions (20Hz) 
-7. NetworkAISystem         - Sync AI behavior and positions (10Hz)
-8. ComponentRenderSystem   - Draw everything
+1. ComponentInputSystem         - Process player input → events
+2. ComponentMovementSystem      - Apply movement from events + tile collision detection  
+3. ComponentCollisionSystem     - Detect/resolve entity collisions (player-cop)
+4. InventorySystem              - Manage player inventories and item interactions
+5. NetworkManager               - Handle multiplayer networking (if enabled)
+6. NetworkSyncSystem            - Sync player positions (20Hz) 
+7. NetworkAISystem              - Sync AI behavior and positions (10Hz)
+8. NetworkInterpolationSystem   - Smooth movement interpolation (60fps) **NEW**
+9. ComponentRenderSystem        - Draw everything
 ```
 
 #### Start Menu Scene (NEW)
@@ -325,9 +328,21 @@ using PrisonBreak.Core.Networking;
 var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
 player.AddComponent(new NetworkComponent(networkId: 1, NetworkConfig.NetworkAuthority.Client, ownerId: playerId));
 
+// Add interpolation for remote players only **NEW**
+if (!isLocalPlayer) {
+    var transform = player.GetComponent<TransformComponent>();
+    player.AddComponent(new InterpolationComponent(transform.Position, transform.Rotation, 1.0 / 20.0));
+}
+
 // Create networked AI cop (host authority)
 var aiCop = entityManager.CreateCop(position, AIBehavior.Patrol);
 aiCop.AddComponent(new CopTag(1001)); // Deterministic network ID
+
+// Add interpolation for AI cops on clients **NEW**
+if (networkManager.CurrentGameMode == NetworkConfig.GameMode.Client) {
+    var transform = aiCop.GetComponent<TransformComponent>();
+    aiCop.AddComponent(new InterpolationComponent(transform.Position, transform.Rotation, 1.0 / 10.0));
+}
 
 // Send entity spawn to clients (host only)
 if (networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)

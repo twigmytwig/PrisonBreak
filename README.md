@@ -1,6 +1,6 @@
 # Prison Break Game
 
-**Version 0.2.0** - Multiplayer Networking System
+**Version 0.3.0** - Multiplayer Networking with Smooth Movement
 
 A 2D top-down prison escape game built with **MonoGame** and **Entity Component System (ECS)** architecture, featuring complete real-time multiplayer support.
 
@@ -13,11 +13,12 @@ A 2D top-down prison escape game built with **MonoGame** and **Entity Component 
 - **Inventory System**: Visual slot-based inventory with drag-and-drop support
 - **Collision System**: Player-cop collision handling with position reset
 
-### 🌐 Multiplayer System (v0.2.0)
+### 🌐 Multiplayer System (v0.3.0) **NEW**
 - **Real-time Multiplayer**: 2-8 player support with authoritative host architecture
 - **Lobby System**: Create/join games with character selection and ready-up system
-- **Player Synchronization**: 20Hz position updates for smooth movement
-- **AI Synchronization**: Shared AI cop behavior across all players (10Hz updates)
+- **Smooth Movement Interpolation**: Client-side interpolation for seamless 60fps movement **NEW**
+- **Player Synchronization**: 20Hz position updates with smooth interpolation
+- **AI Synchronization**: Shared AI cop behavior across all players (10Hz updates with smooth interpolation) **NEW**
 - **Inventory Networking**: Authoritative item pickups and chest transfers
 - **State Consistency**: Complete inventory state synchronization for reliability
 

@@ -1,34 +1,47 @@
 # Multiplayer Known Issues and Bugs
 
-**Date**: January 30, 2025  
+**Date**: August 3, 2025  
 **Status**: Active tracking of multiplayer implementation issues
 
 ---
 
 ## 🐛 Known Issues
 
-### 1. Remote Player Movement is Choppy
-**Severity**: Medium  
-**Status**: Known Issue  
-**Description**: Remote player movement appears choppy/stuttery due to network synchronization updates.
-
-**Technical Details**:
-- NetworkSyncSystem sends position updates at 20Hz
-- Position updates are applied instantly without interpolation
-- Results in visible "teleporting" between network update positions
-- Local player movement is smooth (no network dependency)
-
-**Potential Solutions** (Future Enhancement):
-- Implement client-side interpolation between network position updates
-- Add movement prediction for remote players
-- Consider increasing network update rate to 30-60Hz
-- Implement smoothing/lerping between received positions
-
-**Workaround**: None currently - this is expected behavior for the current implementation phase.
+*No active known issues at this time.*
 
 ---
 
 ## 🔧 Fixed Issues
+
+### 1. Remote Player Movement is Choppy (FIXED)
+**Date Fixed**: August 3, 2025  
+**Severity**: Medium  
+**Root Cause**: Network position updates applied instantly without interpolation
+
+**Issue Description**:
+- Remote player movement appeared choppy/stuttery due to network synchronization updates
+- NetworkSyncSystem sent position updates at 20Hz, AI updates at 10Hz
+- Position updates were applied instantly without interpolation
+- Resulted in visible "teleporting" between network update positions
+- Local player movement was smooth (no network dependency)
+
+**Solution Implemented**:
+- **NEW InterpolationComponent**: Added component to track interpolation state for remote entities
+- **NEW NetworkInterpolationSystem**: 60fps smooth interpolation system for remote players and AI
+- **Enhanced Network Message Handling**: Modified `NetworkManager.HandleClientTransform()` to route to interpolation system
+- **Selective Application**: Only remote entities get interpolation, local player remains unaffected
+- **Smooth Step Function**: Natural acceleration/deceleration for realistic movement feel
+
+**Technical Implementation**:
+```csharp
+// InterpolationComponent added to remote players and AI cops
+player.AddComponent(new InterpolationComponent(transform.Position, transform.Rotation, 1.0 / 20.0));
+
+// NetworkInterpolationSystem smoothly interpolates between network updates
+transform.Position = Vector2.Lerp(previousPos, targetPos, SmoothStep(progress));
+```
+
+**Result**: All remote entities now move smoothly at 60fps regardless of network update frequency.
 
 ### 1. Client Player Cannot Move (FIXED)
 **Date Fixed**: January 30, 2025  
