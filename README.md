@@ -2,7 +2,7 @@
 
 A 2D prison escape game built with MonoGame, featuring a modern **Scene-Based + Entity Component System (ECS)** architecture for high performance and multiplayer readiness.
 
-## 🚀 Latest Major Update: Scene Management System (v0.1.15)
+## 🚀 Latest Major Update: MULTIPLAYER (v0.2.11)
 
 This project has evolved through **two major architectural improvements**:
 
