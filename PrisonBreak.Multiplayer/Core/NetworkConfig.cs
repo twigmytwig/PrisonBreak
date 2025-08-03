@@ -30,6 +30,11 @@ public static class NetworkConfig
         // Inventory system
         Inventory = 30,
         ItemTransfer = 31,
+        InteractionRequest = 32,
+        InteractionRejected = 33,
+        ItemPickup = 34,
+        InventoryUpdate = 35,
+        ChestInteraction = 36,
         
         // Connection management
         Welcome = 100,

@@ -30,6 +30,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private NetworkManager _networkManager;
     private NetworkSyncSystem _networkSyncSystem;
     private NetworkAISystem _networkAISystem;
+    private NetworkInventorySystem _networkInventorySystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -81,6 +82,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _chestUIRenderSystem = new ChestUIRenderSystem();
         _networkSyncSystem = new NetworkSyncSystem();
         _networkAISystem = new NetworkAISystem();
+        _networkInventorySystem = new NetworkInventorySystem();
         // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
         try
         {
@@ -116,6 +118,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _interactionSystem.SetEntityManager(EntityManager);
         _interactionSystem.SetEventBus(EventBus);
         _interactionSystem.SetInventorySystem(_inventorySystem);
+        if (_networkManager != null)
+        {
+            _interactionSystem.SetNetworkManager(_networkManager);
+        }
 
         _chestUIRenderSystem.SetEntityManager(EntityManager);
         _chestUIRenderSystem.SetEventBus(EventBus);
@@ -126,6 +132,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkAISystem.SetEntityManager(EntityManager);
         _networkAISystem.SetEventBus(EventBus);
 
+        _networkInventorySystem.SetEntityManager(EntityManager);
+        _networkInventorySystem.SetEventBus(EventBus);
+        _networkInventorySystem.SetInventorySystem(_inventorySystem);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -135,9 +145,14 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_inventorySystem);
         if (_networkManager != null) // Only add NetworkManager in multiplayer mode
         {
+            // Set up NetworkManager connections
+            _networkInventorySystem.SetNetworkManager(_networkManager);
+            _networkManager.SetNetworkInventorySystem(_networkInventorySystem);
+            
             SystemManager.AddSystem(_networkManager); // Add network manager after game logic systems
             SystemManager.AddSystem(_networkSyncSystem); // Add network sync system after network manager
             SystemManager.AddSystem(_networkAISystem); // Add AI sync system after network sync
+            SystemManager.AddSystem(_networkInventorySystem); // Add inventory sync system
         }
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
@@ -451,18 +466,48 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             // Create a test item near the player for pickup testing
             Vector2 testItemPos = new Vector2(_roomBounds.Left + 200, _roomBounds.Top + 100);
             var testItem = EntityManager.CreateItemAtPosition("key", testItemPos);
-            Console.WriteLine($"Created test key item at {testItemPos}");
+            
+            // Add NetworkComponent to item for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testItem);
+                Console.WriteLine($"Created test key item at {testItemPos} with NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created test key item at {testItemPos}");
+            }
 
             // Create a test chest with some items
             Vector2 testChestPos = new Vector2(_roomBounds.Right - 200, _roomBounds.Top + 150);
             string[] chestItems = { "key" }; // Put a key in the chest
             var testChest = EntityManager.CreateChest(testChestPos, chestItems);
-            Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items");
+            
+            // Add NetworkComponent to chest for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testChest);
+                Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items and NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items");
+            }
 
             // Create another test item on the opposite side
             Vector2 testItemPos2 = new Vector2(_roomBounds.Right - 150, _roomBounds.Bottom - 100);
             var testItem2 = EntityManager.CreateItemAtPosition("key", testItemPos2);
-            Console.WriteLine($"Created second test key item at {testItemPos2}");
+            
+            // Add NetworkComponent to item for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testItem2);
+                Console.WriteLine($"Created second test key item at {testItemPos2} with NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created second test key item at {testItemPos2}");
+            }
         }
         catch (Exception ex)
         {
@@ -585,12 +630,53 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         if (_inventorySystem == null || _currentChestEntity == null)
             return;
 
-        // Get the player entity (assume first player for now)
-        var playerEntities = EntityManager.GetEntitiesWith<PlayerTag>();
-        var playerEntity = playerEntities.FirstOrDefault();
+        // Get the LOCAL player entity (the one this client controls)
+        var localPlayerEntities = EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>();
+        var playerEntity = localPlayerEntities.FirstOrDefault();
         if (playerEntity == null)
+        {
+            Console.WriteLine("[GameplayScene] Could not find local player entity for chest interaction");
             return;
+        }
 
+        // Check if we're in multiplayer mode
+        bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != NetworkConfig.GameMode.SinglePlayer;
+        
+        if (isMultiplayer)
+        {
+            // Send chest transfer through network
+            if (playerEntity.HasComponent<NetworkComponent>() && _currentChestEntity.HasComponent<NetworkComponent>())
+            {
+                var playerNetworkId = playerEntity.GetComponent<NetworkComponent>().NetworkId;
+                var chestNetworkId = _currentChestEntity.GetComponent<NetworkComponent>().NetworkId;
+                
+                string action = _isPlayerInventorySelected ? "transfer_to_chest" : "transfer_to_player";
+                var transferMessage = new ChestInteractionMessage(playerNetworkId, chestNetworkId, action, _selectedSlotIndex);
+                
+                // Both host and client send the message through networking
+                // Host will process it in NetworkManager and broadcast the result
+                // Client will send it as a request to host
+                _networkManager.SendChestInteraction(transferMessage);
+                
+                if (_networkManager.IsHost)
+                {
+                    Console.WriteLine($"[GameplayScene] Host sent chest transfer for processing: {action}");
+                }
+                else
+                {
+                    Console.WriteLine($"[GameplayScene] Client requested chest transfer: {action}");
+                }
+            }
+        }
+        else
+        {
+            // Single-player: process locally
+            ProcessLocalItemTransfer(playerEntity);
+        }
+    }
+    
+    private void ProcessLocalItemTransfer(Entity playerEntity)
+    {
         bool transferSuccess = false;
 
         if (_isPlayerInventorySelected)
@@ -622,8 +708,8 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     {
         if (_isPlayerInventorySelected)
         {
-            // Get player inventory size
-            var playerEntity = EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault();
+            // Get LOCAL player inventory size
+            var playerEntity = EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>().FirstOrDefault();
             if (playerEntity != null && playerEntity.HasComponent<InventoryComponent>())
             {
                 return playerEntity.GetComponent<InventoryComponent>().MaxSlots;
@@ -644,7 +730,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private void SendSlotSelectedEvent()
     {
         Entity targetContainer = _isPlayerInventorySelected ?
-            EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault() :
+            EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>().FirstOrDefault() :
             _currentChestEntity;
 
         if (targetContainer != null)

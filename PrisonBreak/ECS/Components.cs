@@ -254,7 +254,8 @@ public struct InventoryComponent
 
 public struct ItemComponent
 {
-    public string ItemName;
+    public string ItemId;      // The database ID (e.g., "key")
+    public string ItemName;    // The display name (e.g., "Key")
     public string ItemType; // TODO: this should be not a string probably
     public bool IsStackable;
     public int StackSize;

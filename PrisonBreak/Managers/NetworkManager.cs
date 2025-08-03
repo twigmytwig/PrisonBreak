@@ -10,6 +10,7 @@ using PrisonBreak.Scenes;
 using PrisonBreak.Multiplayer.Core;
 using PrisonBreak.Multiplayer.Messages;
 using PrisonBreak.Core.Networking;
+using PrisonBreak.ECS.Systems;
 
 namespace PrisonBreak.Managers;
 
@@ -21,6 +22,7 @@ public class NetworkManager : IGameSystem
 
     private readonly EventBus _eventBus;
     private ComponentEntityManager _entityManager;
+    private NetworkInventorySystem _networkInventorySystem;
 
     // Network state
     public NetworkConfig.GameMode CurrentGameMode { get; private set; }
@@ -54,6 +56,36 @@ public class NetworkManager : IGameSystem
     public int GetLocalPlayerId()
     {
         return _localPlayerId;
+    }
+
+    /// <summary>
+    /// Check if this instance is the host
+    /// </summary>
+    public bool IsHost => CurrentGameMode == NetworkConfig.GameMode.LocalHost;
+
+    /// <summary>
+    /// Set the NetworkInventorySystem reference for interaction processing
+    /// </summary>
+    public void SetNetworkInventorySystem(NetworkInventorySystem networkInventorySystem)
+    {
+        _networkInventorySystem = networkInventorySystem;
+    }
+
+    /// <summary>
+    /// Get the NetworkInventorySystem from the current scene's system manager
+    /// </summary>
+    public NetworkInventorySystem GetNetworkInventorySystem()
+    {
+        return _networkInventorySystem;
+    }
+
+    /// <summary>
+    /// Find entity by network ID
+    /// </summary>
+    private Entity FindEntityByNetworkId(int networkId)
+    {
+        var networkedEntities = _entityManager.GetEntitiesWith<NetworkComponent>();
+        return networkedEntities.FirstOrDefault(e => e.GetComponent<NetworkComponent>().NetworkId == networkId);
     }
 
     // Network components
@@ -425,6 +457,95 @@ public class NetworkManager : IGameSystem
         // Clients never send collision events - they only receive them
     }
 
+    /// <summary>
+    /// Send interaction request to host (client only)
+    /// </summary>
+    public void SendInteractionRequest(InteractionRequestMessage requestMessage)
+    {
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+        if (CurrentGameMode == NetworkConfig.GameMode.Client)
+        {
+            Console.WriteLine($"[NetworkManager] Client sending interaction request: Player {requestMessage.PlayerId} → Item {requestMessage.TargetNetworkId}");
+            _networkClient?.SendMessage(requestMessage);
+        }
+    }
+
+    /// <summary>
+    /// Send interaction rejection to client (host only)
+    /// </summary>
+    public void SendInteractionRejected(InteractionRejectedMessage rejectionMessage)
+    {
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+        if (CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            Console.WriteLine($"[NetworkManager] Host sending interaction rejection: Player {rejectionMessage.PlayerId}");
+            _networkServer?.BroadcastMessage(rejectionMessage);
+        }
+    }
+
+    /// <summary>
+    /// Send item pickup result to all clients (host only)
+    /// </summary>
+    public void SendItemPickup(ItemPickupMessage pickupMessage)
+    {
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+        if (CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            Console.WriteLine($"[NetworkManager] Host sending item pickup: Player {pickupMessage.PlayerId} picked up {pickupMessage.ItemType}");
+            _networkServer?.BroadcastMessage(pickupMessage);
+        }
+    }
+
+    /// <summary>
+    /// Send inventory update to all clients (host only)
+    /// </summary>
+    public void SendInventoryUpdate(InventoryUpdateMessage inventoryMessage)
+    {
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+        if (CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            Console.WriteLine($"[NetworkManager] Host sending inventory update: Player {inventoryMessage.PlayerId}");
+            _networkServer?.BroadcastMessage(inventoryMessage);
+        }
+    }
+
+    /// <summary>
+    /// Send chest interaction (host broadcasts, client sends to host)
+    /// </summary>
+    public void SendChestInteraction(ChestInteractionMessage chestMessage)
+    {
+        if (CurrentGameMode == NetworkConfig.GameMode.SinglePlayer)
+            return;
+
+        if (CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            Console.WriteLine($"[NetworkManager] Host sending chest interaction: Player {chestMessage.PlayerId} action {chestMessage.Action}");
+            
+            // Process transfer locally on host before broadcasting
+            if (chestMessage.Action == "transfer_to_chest" || chestMessage.Action == "transfer_to_player")
+            {
+                bool success = ProcessChestTransferOnHost(chestMessage);
+                chestMessage.Success = success;
+                if (!success)
+                {
+                    chestMessage.ErrorReason = "Transfer failed";
+                }
+                Console.WriteLine($"[NetworkManager] Host processed own transfer locally: {chestMessage.Action}, Success: {success}");
+            }
+            
+            _networkServer?.BroadcastMessage(chestMessage);
+        }
+        else if (CurrentGameMode == NetworkConfig.GameMode.Client)
+        {
+            Console.WriteLine($"[NetworkManager] Client sending chest interaction: Player {chestMessage.PlayerId} action {chestMessage.Action}");
+            _networkClient?.SendMessage(chestMessage);
+        }
+    }
+
     #endregion
 
     #region Event Handlers - Always subscribed, filter by game mode
@@ -471,6 +592,8 @@ public class NetworkManager : IGameSystem
         _serverMessageHandlers[NetworkConfig.MessageType.PlayerCharacterSelect] = HandleServerPlayerCharacterSelect;
         _serverMessageHandlers[NetworkConfig.MessageType.PlayerReadyState] = HandleServerPlayerReadyState;
         _serverMessageHandlers[NetworkConfig.MessageType.Transform] = HandleServerTransform;
+        _serverMessageHandlers[NetworkConfig.MessageType.InteractionRequest] = HandleServerInteractionRequest;
+        _serverMessageHandlers[NetworkConfig.MessageType.ChestInteraction] = HandleServerChestInteraction;
 
         // Client message handlers (received from server)
         _clientMessageHandlers[NetworkConfig.MessageType.Welcome] = HandleClientWelcome;
@@ -484,6 +607,10 @@ public class NetworkManager : IGameSystem
         _clientMessageHandlers[NetworkConfig.MessageType.AIState] = HandleClientAIState;
         _clientMessageHandlers[NetworkConfig.MessageType.EntitySpawn] = HandleClientEntitySpawn;
         _clientMessageHandlers[NetworkConfig.MessageType.Collision] = HandleClientCollision;
+        _clientMessageHandlers[NetworkConfig.MessageType.InteractionRejected] = HandleClientInteractionRejected;
+        _clientMessageHandlers[NetworkConfig.MessageType.ItemPickup] = HandleClientItemPickup;
+        _clientMessageHandlers[NetworkConfig.MessageType.InventoryUpdate] = HandleClientInventoryUpdate;
+        _clientMessageHandlers[NetworkConfig.MessageType.ChestInteraction] = HandleClientChestInteraction;
     }
 
     #endregion
@@ -561,6 +688,152 @@ public class NetworkManager : IGameSystem
 
         // Server broadcasts the transform update to all other clients
         _networkServer?.BroadcastMessageExcept(clientId, transformMsg);
+    }
+
+    private void HandleServerInteractionRequest(int clientId, INetworkMessage message)
+    {
+        var requestMsg = (InteractionRequestMessage)message;
+        Console.WriteLine($"[NetworkManager] Server received interaction request from client {clientId}: Player {requestMsg.PlayerId} → Item {requestMsg.TargetNetworkId}");
+
+        // Find NetworkInventorySystem and process the request
+        var networkInventorySystem = GetNetworkInventorySystem();
+        networkInventorySystem?.ProcessInteractionRequest(requestMsg);
+    }
+
+    private void HandleServerChestInteraction(int clientId, INetworkMessage message)
+    {
+        var chestMsg = (ChestInteractionMessage)message;
+        Console.WriteLine($"[NetworkManager] Server received chest interaction from client {clientId}: Player {chestMsg.PlayerId} → Chest {chestMsg.ChestNetworkId}, Action: {chestMsg.Action}");
+
+        if (chestMsg.Action == "open" || chestMsg.Action == "close")
+        {
+            // For open/close actions, just broadcast - no processing needed
+            _networkServer?.BroadcastMessage(chestMsg);
+        }
+        else if (chestMsg.Action == "transfer_to_chest" || chestMsg.Action == "transfer_to_player")
+        {
+            // Process transfer on host and broadcast result
+            bool success = ProcessChestTransferOnHost(chestMsg);
+
+            // Update the message with the result
+            chestMsg.Success = success;
+            if (!success)
+            {
+                chestMsg.ErrorReason = "Transfer failed";
+            }
+
+            // Broadcast the result to all clients (including the sender)
+            _networkServer?.BroadcastMessage(chestMsg);
+            Console.WriteLine($"[NetworkManager] Host processed chest transfer: {chestMsg.Action}, Success: {success}");
+        }
+        else
+        {
+            Console.WriteLine($"[NetworkManager] Unknown chest action: {chestMsg.Action}");
+        }
+    }
+
+    /// <summary>
+    /// Process chest transfer on host side and populate inventory states
+    /// </summary>
+    private bool ProcessChestTransferOnHost(ChestInteractionMessage message)
+    {
+        // Find entities by network ID
+        var player = FindEntityByNetworkId(message.PlayerId);
+        var chest = FindEntityByNetworkId(message.ChestNetworkId);
+
+        if (player == null || chest == null)
+        {
+            Console.WriteLine($"[NetworkManager] Could not find entities for chest transfer - Player: {message.PlayerId}, Chest: {message.ChestNetworkId}");
+            return false;
+        }
+
+        // Find the InventorySystem from the current scene
+        var inventorySystem = FindInventorySystem();
+        if (inventorySystem == null)
+        {
+            Console.WriteLine($"[NetworkManager] Could not find InventorySystem for chest transfer processing");
+            return false;
+        }
+
+        // Process the transfer using the reliable InventorySystem
+        bool success = false;
+        if (message.Action == "transfer_to_chest")
+        {
+            // Transfer from player to chest
+            success = inventorySystem.TryTransferItemToContainer(player, chest, message.SlotIndex);
+            Console.WriteLine($"[NetworkManager] Host transfer to chest: Player slot {message.SlotIndex}, Success: {success}");
+        }
+        else if (message.Action == "transfer_to_player")
+        {
+            // Transfer from chest to player
+            success = inventorySystem.TryTransferItemToPlayer(chest, player, message.SlotIndex);
+            Console.WriteLine($"[NetworkManager] Host transfer to player: Chest slot {message.SlotIndex}, Success: {success}");
+        }
+
+        if (success)
+        {
+            // Serialize complete inventory states after successful transfer
+            SerializeInventoryStates(player, chest, message);
+        }
+
+        return success;
+    }
+
+    /// <summary>
+    /// Serialize complete inventory states into the message for client synchronization
+    /// </summary>
+    private void SerializeInventoryStates(Entity player, Entity chest, ChestInteractionMessage message)
+    {
+        // Serialize player inventory
+        if (player.HasComponent<InventoryComponent>())
+        {
+            var playerInventory = player.GetComponent<InventoryComponent>();
+            message.PlayerInventoryItems = new string[playerInventory.MaxSlots];
+
+            for (int i = 0; i < playerInventory.MaxSlots; i++)
+            {
+                var item = playerInventory.Items[i];
+                if (item != null && item.HasComponent<ItemComponent>())
+                {
+                    message.PlayerInventoryItems[i] = item.GetComponent<ItemComponent>().ItemId;
+                }
+                else
+                {
+                    message.PlayerInventoryItems[i] = null;
+                }
+            }
+        }
+
+        // Serialize chest inventory
+        if (chest.HasComponent<ContainerComponent>())
+        {
+            var chestContainer = chest.GetComponent<ContainerComponent>();
+            message.ChestInventoryItems = new string[chestContainer.MaxItems];
+
+            for (int i = 0; i < chestContainer.MaxItems; i++)
+            {
+                var item = chestContainer.ContainedItems[i];
+                if (item != null && item.HasComponent<ItemComponent>())
+                {
+                    message.ChestInventoryItems[i] = item.GetComponent<ItemComponent>().ItemId;
+                }
+                else
+                {
+                    message.ChestInventoryItems[i] = null;
+                }
+            }
+        }
+
+        Console.WriteLine($"[NetworkManager] Serialized inventory states for synchronization");
+    }
+
+    /// <summary>
+    /// Find the InventorySystem from the currently active scene
+    /// </summary>
+    private InventorySystem FindInventorySystem()
+    {
+        var networkInventorySystem = GetNetworkInventorySystem();
+        return networkInventorySystem?.GetInventorySystem();
     }
 
     #endregion
@@ -739,8 +1012,6 @@ public class NetworkManager : IGameSystem
         // Apply the received AI state
         var newAI = aiStateMsg.ToComponent();
         entity.AddComponent(newAI); // AddComponent replaces existing component for structs
-
-        Console.WriteLine($"[NetworkManager] Applied AI state update for cop {aiStateMsg.EntityId}: {newAI.Behavior}");
     }
 
     private void HandleClientEntitySpawn(INetworkMessage message)
@@ -772,14 +1043,14 @@ public class NetworkManager : IGameSystem
 
                 // Create cop entity on client (without AI logic - will be synced)
                 var copEntity = _entityManager.CreateCop(entitySpawnMsg.Position, aiBehavior);
-                
+
                 // Override with network entity ID for synchronization
                 copEntity.AddComponent(new CopTag(entitySpawnMsg.NetworkEntityId));
-                
+
                 // Add bounds constraints for AI cops using room bounds from spawn message
                 _entityManager.AddBoundsConstraint(copEntity, entitySpawnMsg.RoomBounds, true); // Cops reflect
                 Console.WriteLine($"[NetworkManager] Added bounds constraint to networked cop {entitySpawnMsg.NetworkEntityId}");
-                
+
                 Console.WriteLine($"[NetworkManager] Created networked cop entity with ID {entitySpawnMsg.NetworkEntityId}");
                 break;
 
@@ -810,12 +1081,241 @@ public class NetworkManager : IGameSystem
             transform.Position = collisionMsg.NewCopPosition;
             ai.StateTimer = 0f;
             ai.PatrolDirection = collisionMsg.NewPatrolDirection;
-
-            Console.WriteLine($"[NetworkManager] Applied collision result: Cop {collisionMsg.CopId} teleported from {oldPosition} to {collisionMsg.NewCopPosition}");
         }
         else
         {
             Console.WriteLine($"[NetworkManager] Warning: Could not find cop {collisionMsg.CopId} for collision result");
+        }
+    }
+
+    private void HandleClientInteractionRejected(INetworkMessage message)
+    {
+        var rejectionMsg = (InteractionRejectedMessage)message;
+        Console.WriteLine($"[NetworkManager] Client received interaction rejection: Player {rejectionMsg.PlayerId}, Reason: {rejectionMsg.Reason}");
+        // TODO: Show UI feedback to player about why interaction was rejected
+    }
+
+    private void HandleClientItemPickup(INetworkMessage message)
+    {
+        var pickupMsg = (ItemPickupMessage)message;
+        Console.WriteLine($"[NetworkManager] Client received item pickup: Player {pickupMsg.PlayerId}, Item {pickupMsg.ItemType}, Success: {pickupMsg.Success}");
+
+        // Find NetworkInventorySystem and apply the pickup result
+        var networkInventorySystem = GetNetworkInventorySystem();
+        networkInventorySystem?.ApplyItemPickupResult(pickupMsg);
+    }
+
+    private void HandleClientInventoryUpdate(INetworkMessage message)
+    {
+        var inventoryMsg = (InventoryUpdateMessage)message;
+        Console.WriteLine($"[NetworkManager] Client received inventory update: Player {inventoryMsg.PlayerId}, Slot {inventoryMsg.SlotIndex}, Action: {inventoryMsg.ActionType}");
+        // TODO: Apply inventory changes from host
+    }
+
+    private void HandleClientChestInteraction(INetworkMessage message)
+    {
+        var chestMsg = (ChestInteractionMessage)message;
+        Console.WriteLine($"[NetworkManager] Client received chest interaction: Player {chestMsg.PlayerId}, Action: {chestMsg.Action}, Success: {chestMsg.Success}");
+
+        // Find entities by network ID
+        var player = FindEntityByNetworkId(chestMsg.PlayerId);
+        var chest = FindEntityByNetworkId(chestMsg.ChestNetworkId);
+
+        if (player != null && chest != null)
+        {
+            if (chestMsg.Action == "open")
+            {
+                // Only open chest UI if this is the local player's action
+                var localPlayer = FindLocalPlayer();
+                if (localPlayer != null && localPlayer == player)
+                {
+                    _eventBus.Send(new ChestUIOpenEvent(chest, player));
+                    Console.WriteLine($"[NetworkManager] Client opened chest UI for LOCAL player and chest {chestMsg.ChestNetworkId}");
+                }
+                else
+                {
+                    Console.WriteLine($"[NetworkManager] Client received chest open for remote player {chestMsg.PlayerId} - not opening UI");
+                }
+            }
+            else if (chestMsg.Action == "close")
+            {
+                // Only close chest UI if this is the local player's action
+                var localPlayer = FindLocalPlayer();
+                if (localPlayer != null && localPlayer == player)
+                {
+                    _eventBus.Send(new ChestUICloseEvent(chest, player));
+                    Console.WriteLine($"[NetworkManager] Client closed chest UI for LOCAL player and chest {chestMsg.ChestNetworkId}");
+                }
+                else
+                {
+                    Console.WriteLine($"[NetworkManager] Client received chest close for remote player {chestMsg.PlayerId} - not closing UI");
+                }
+            }
+            else if (chestMsg.Action == "transfer_to_chest" || chestMsg.Action == "transfer_to_player")
+            {
+                // Apply the transfer result from the host (for all players to keep inventories in sync)
+                ApplyChestTransferResult(chestMsg, player, chest);
+            }
+        }
+        else
+        {
+            Console.WriteLine($"[NetworkManager] Could not find entities - Player: {chestMsg.PlayerId}, Chest: {chestMsg.ChestNetworkId}");
+        }
+    }
+
+    /// <summary>
+    /// Find the local player entity - the one with input component
+    /// </summary>
+    private Entity FindLocalPlayer()
+    {
+        var localPlayers = _entityManager.GetEntitiesWith<PlayerInputComponent>();
+        return localPlayers.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Apply chest transfer result using simple state synchronization
+    /// </summary>
+    private void ApplyChestTransferResult(ChestInteractionMessage message, Entity player, Entity chest)
+    {
+        if (!message.Success)
+        {
+            Console.WriteLine($"[NetworkManager] Client received failed chest transfer: {message.ErrorReason}");
+            return;
+        }
+
+        // Process the transfer for all players (host and clients)
+        Console.WriteLine($"[NetworkManager] Processing chest transfer result for {(IsHost ? "host" : "client")}");
+
+        // Only apply inventory states if this transfer involves the LOCAL player
+        var localPlayer = FindLocalPlayer();
+        if (localPlayer != null)
+        {
+            // Check if the message is for the local player by comparing network IDs
+            var localPlayerNetworkId = localPlayer.HasComponent<NetworkComponent>() ?
+                localPlayer.GetComponent<NetworkComponent>().NetworkId : -1;
+            
+            if (localPlayerNetworkId == message.PlayerId)
+            {
+                Console.WriteLine($"[NetworkManager] Client applying inventory states for LOCAL player transfer (NetworkId: {message.PlayerId})");
+                ApplyInventoryStates(localPlayer, chest, message);
+            }
+            else
+            {
+                Console.WriteLine($"[NetworkManager] Transfer was for remote player {message.PlayerId}, local player is {localPlayerNetworkId} - not applying to local inventory");
+            }
+        }
+        
+        // Always update the chest inventory for all players (chest is shared)
+        if (chest.HasComponent<ContainerComponent>() && message.ChestInventoryItems != null)
+        {
+            ref var chestContainer = ref chest.GetComponent<ContainerComponent>();
+
+            // Clear existing container
+            for (int i = 0; i < chestContainer.MaxItems; i++)
+            {
+                chestContainer.ContainedItems[i] = null;
+            }
+            chestContainer.ItemCount = 0;
+
+            // Apply new container state
+            for (int i = 0; i < Math.Min(chestContainer.MaxItems, message.ChestInventoryItems.Length); i++)
+            {
+                if (!string.IsNullOrEmpty(message.ChestInventoryItems[i]))
+                {
+                    var item = _entityManager.CreateItem(message.ChestInventoryItems[i]);
+                    chestContainer.ContainedItems[i] = item;
+                    chestContainer.ItemCount++;
+                }
+            }
+
+            Console.WriteLine($"[NetworkManager] Updated shared chest inventory");
+        }
+    }
+
+    /// <summary>
+    /// Apply complete inventory states from host to client entities
+    /// </summary>
+    private void ApplyInventoryStates(Entity player, Entity chest, ChestInteractionMessage message)
+    {
+        Console.WriteLine($"[NetworkManager] Applying inventory states from host to player {player.Id}");
+
+        // Apply player inventory state using InventorySystem to fire proper events
+        if (player.HasComponent<InventoryComponent>() && message.PlayerInventoryItems != null)
+        {
+            Console.WriteLine($"[NetworkManager] Applying player inventory state from host");
+            
+            var inventorySystem = FindInventorySystem();
+            if (inventorySystem != null)
+            {
+                ref var playerInventory = ref player.GetComponent<InventoryComponent>();
+                
+                // Clear existing inventory using direct assignment (we'll fire events manually)
+                for (int i = 0; i < playerInventory.MaxSlots; i++)
+                {
+                    if (playerInventory.Items[i] != null)
+                    {
+                        // Fire ItemRemovedEvent for UI updates
+                        var playerId = player.HasComponent<PlayerTag>() ? player.Id : -1;
+                        _eventBus?.Send(new ItemRemovedEvent(playerId, playerInventory.Items[i], i));
+                    }
+                    playerInventory.Items[i] = null;
+                }
+                playerInventory.ItemCount = 0;
+                
+                // Apply new inventory state and fire events
+                for (int i = 0; i < Math.Min(playerInventory.MaxSlots, message.PlayerInventoryItems.Length); i++)
+                {
+                    if (!string.IsNullOrEmpty(message.PlayerInventoryItems[i]))
+                    {
+                        var item = _entityManager.CreateItem(message.PlayerInventoryItems[i]);
+                        playerInventory.Items[i] = item;
+                        playerInventory.ItemCount++;
+                        
+                        // Fire ItemAddedEvent for UI updates
+                        var playerId = player.HasComponent<PlayerTag>() ? player.Id : -1;
+                        _eventBus?.Send(new ItemAddedEvent(playerId, item, i));
+                    }
+                }
+                
+                Console.WriteLine($"[NetworkManager] Applied player inventory with UI events");
+            }
+            else
+            {
+                Console.WriteLine($"[NetworkManager] Warning: Could not find InventorySystem for event firing");
+            }
+        }
+
+        // Apply chest inventory state
+        if (chest.HasComponent<ContainerComponent>() && message.ChestInventoryItems != null)
+        {
+            ref var chestContainer = ref chest.GetComponent<ContainerComponent>();
+
+            // Clear existing container
+            for (int i = 0; i < chestContainer.MaxItems; i++)
+            {
+                chestContainer.ContainedItems[i] = null;
+            }
+            chestContainer.ItemCount = 0;
+
+            // Apply new container state
+            for (int i = 0; i < Math.Min(chestContainer.MaxItems, message.ChestInventoryItems.Length); i++)
+            {
+                if (!string.IsNullOrEmpty(message.ChestInventoryItems[i]))
+                {
+                    var item = _entityManager.CreateItem(message.ChestInventoryItems[i]);
+                    chestContainer.ContainedItems[i] = item;
+                    chestContainer.ItemCount++;
+                }
+            }
+        }
+
+        // Fire UI update event for local player only
+        var localPlayer = FindLocalPlayer();
+        if (localPlayer != null && localPlayer == player && player.HasComponent<PlayerTag>())
+        {
+            // Force UI refresh by sending a generic inventory update
+            Console.WriteLine($"[NetworkManager] Triggering UI refresh for local player");
+            // The UI system will automatically detect the inventory changes on next update
         }
     }
 
@@ -955,6 +1455,11 @@ public class NetworkManager : IGameSystem
                 NetworkConfig.MessageType.AIState => new AIStateMessage(),
                 NetworkConfig.MessageType.EntitySpawn => new EntitySpawnMessage(),
                 NetworkConfig.MessageType.Collision => new CollisionMessage(),
+                NetworkConfig.MessageType.InteractionRequest => new InteractionRequestMessage(),
+                NetworkConfig.MessageType.InteractionRejected => new InteractionRejectedMessage(),
+                NetworkConfig.MessageType.ItemPickup => new ItemPickupMessage(),
+                NetworkConfig.MessageType.InventoryUpdate => new InventoryUpdateMessage(),
+                NetworkConfig.MessageType.ChestInteraction => new ChestInteractionMessage(),
                 _ => null
             };
 

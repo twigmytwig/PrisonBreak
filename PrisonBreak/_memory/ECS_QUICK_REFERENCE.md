@@ -109,6 +109,7 @@ if (entity.HasComponent<CollisionComponent>())
 | `NetworkManager` | Core networking coordination | Event-driven | Host/Client |
 | `NetworkSyncSystem` | Player position synchronization | 20Hz | Client (for own player) |
 | `NetworkAISystem` | AI cop behavior synchronization | 10Hz | Host only |
+| `NetworkInventorySystem` | Item pickup and chest transfer coordination | Event-driven | Host authoritative |
 
 ### Network Messages
 | Message Type | Purpose | Authority | Content |
@@ -117,6 +118,9 @@ if (entity.HasComponent<CollisionComponent>())
 | `AIStateMessage` | AI behavior sync | Host → Clients | Behavior, PatrolDirection, StateTimer, TargetPosition |
 | `EntitySpawnMessage` | Entity creation sync | Host → Clients | EntityType, Position, NetworkID, RoomBounds |
 | `CollisionMessage` | Collision result sync | Host → Clients | PlayerID, CopID, NewPosition, NewPatrolDirection |
+| `InteractionRequestMessage` | Item pickup requests | Client → Host | PlayerId, TargetNetworkId, InteractionType, PlayerPosition |
+| `ItemPickupMessage` | Pickup results | Host → Clients | PlayerId, ItemNetworkId, SlotIndex, Success, ItemType |
+| `ChestInteractionMessage` | Chest inventory sync | Bidirectional | Complete inventory state arrays for player and chest |
 
 ### Menu/UI Components (NEW)
 | Component | Purpose | Key Fields |
@@ -343,6 +347,43 @@ if (networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
 // - CollisionMessage broadcasts teleportation results
 // - Clients apply collision results from host
 // - Prevents collision desync between clients
+
+// Inventory Networking (✅ IMPLEMENTED):
+// - Authoritative item pickups prevent duplication
+// - Complete state synchronization for chest transfers
+// - Event-driven UI updates through existing InventorySystem
+using PrisonBreak.Core.Networking;
+
+// Client requests item pickup
+var request = new InteractionRequestMessage
+{
+    PlayerId = localPlayerId,
+    TargetNetworkId = itemEntity.GetComponent<NetworkComponent>().NetworkId,
+    InteractionType = "pickup",
+    PlayerPosition = localPlayerPosition
+};
+networkManager.SendMessage(request);
+
+// Host validates and responds
+public void ProcessInteractionRequest(InteractionRequestMessage message)
+{
+    bool success = ValidatePickupRequest(message);
+    var response = new ItemPickupMessage
+    {
+        PlayerId = message.PlayerId,
+        Success = success,
+        ItemNetworkId = message.TargetNetworkId,
+        // ... other fields
+    };
+    networkManager.BroadcastMessage(response);
+}
+
+// Chest transfers use complete state sync
+var chestMessage = new ChestInteractionMessage
+{
+    PlayerInventoryItems = new string[] { "key", null, "tool" }, // Complete state
+    ChestInventoryItems = new string[] { null, "gold", null }    // Complete state
+};
 ```
 
 ## 🔧 System Manager Usage
