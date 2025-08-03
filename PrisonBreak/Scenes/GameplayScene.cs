@@ -6,6 +6,9 @@ using PrisonBreak.Core.Graphics;
 using PrisonBreak.Config;
 using PrisonBreak.ECS;
 using PrisonBreak.ECS.Systems;
+using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
 
 namespace PrisonBreak.Scenes;
 
@@ -24,6 +27,10 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private InventoryUIRenderSystem _inventoryUIRenderSystem;
     private InteractionSystem _interactionSystem;
     private ChestUIRenderSystem _chestUIRenderSystem;
+    private NetworkManager _networkManager;
+    private NetworkSyncSystem _networkSyncSystem;
+    private NetworkAISystem _networkAISystem;
+    private NetworkInventorySystem _networkInventorySystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -73,6 +80,21 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _inventoryUIRenderSystem = new InventoryUIRenderSystem();
         _interactionSystem = new InteractionSystem();
         _chestUIRenderSystem = new ChestUIRenderSystem();
+        _networkSyncSystem = new NetworkSyncSystem();
+        _networkAISystem = new NetworkAISystem();
+        _networkInventorySystem = new NetworkInventorySystem();
+        // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
+        try
+        {
+            _networkManager = NetworkManager.Instance;
+            _networkManager.UpdateEntityManager(EntityManager); // Update to use this scene's EntityManager
+            Console.WriteLine($"Debug: Using existing NetworkManager, mode = {_networkManager.CurrentGameMode}");
+        }
+        catch (InvalidOperationException)
+        {
+            _networkManager = null;  // Single-player mode
+            Console.WriteLine("Debug: No NetworkManager found - single-player mode");
+        }
 
         // Set up system dependencies (same as Game1)
         _inputSystem.SetEntityManager(EntityManager);
@@ -96,9 +118,23 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _interactionSystem.SetEntityManager(EntityManager);
         _interactionSystem.SetEventBus(EventBus);
         _interactionSystem.SetInventorySystem(_inventorySystem);
+        if (_networkManager != null)
+        {
+            _interactionSystem.SetNetworkManager(_networkManager);
+        }
 
         _chestUIRenderSystem.SetEntityManager(EntityManager);
         _chestUIRenderSystem.SetEventBus(EventBus);
+
+        _networkSyncSystem.SetEntityManager(EntityManager);
+        _networkSyncSystem.SetEventBus(EventBus);
+
+        _networkAISystem.SetEntityManager(EntityManager);
+        _networkAISystem.SetEventBus(EventBus);
+
+        _networkInventorySystem.SetEntityManager(EntityManager);
+        _networkInventorySystem.SetEventBus(EventBus);
+        _networkInventorySystem.SetInventorySystem(_inventorySystem);
 
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
@@ -107,6 +143,17 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_movementSystem);
         SystemManager.AddSystem(_collisionSystem);
         SystemManager.AddSystem(_inventorySystem);
+        if (_networkManager != null) // Only add NetworkManager in multiplayer mode
+        {
+            // Set up NetworkManager connections
+            _networkInventorySystem.SetNetworkManager(_networkManager);
+            _networkManager.SetNetworkInventorySystem(_networkInventorySystem);
+            
+            SystemManager.AddSystem(_networkManager); // Add network manager after game logic systems
+            SystemManager.AddSystem(_networkSyncSystem); // Add network sync system after network manager
+            SystemManager.AddSystem(_networkAISystem); // Add AI sync system after network sync
+            SystemManager.AddSystem(_networkInventorySystem); // Add inventory sync system
+        }
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
         SystemManager.AddSystem(_chestUIRenderSystem); // Render chest UI on top
@@ -209,35 +256,104 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         // Set up tile-based collision map for movement system (same as Game1)
         _movementSystem.SetCollisionMap(_tilemap, Vector2.Zero);
 
-        // Create player entity (enhanced with start menu data)
+        // Calculate player spawn positions
         int centerRow = _tilemap.Rows / 2;
         int centerColumn = _tilemap.Columns / 2;
-        Vector2 playerStartPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
+        Vector2 baseSpawnPos = new(centerColumn * _tilemap.TileWidth, centerRow * _tilemap.TileHeight);
 
-        // Use data from start menu if available, otherwise default to prisoner
-        PlayerType playerType = _gameStartData?.PlayerType ?? PlayerType.Prisoner;
-        PlayerIndex playerIndex = _gameStartData?.PlayerIndex ?? PlayerIndex.One;
+        // Check if this is multiplayer mode
+        bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.SinglePlayer;
+        Entity localPlayerEntity = null;
 
-        var playerEntity = EntityManager.CreatePlayer(playerStartPos, playerIndex, playerType);
+        if (isMultiplayer && _gameStartData?.AllPlayersData != null)
+        {
+            // Multiplayer: Create all player entities from AllPlayersData
+            Console.WriteLine($"[GameplayScene] Multiplayer mode - LocalPlayerId = {_gameStartData.Value.LocalPlayerId}");
 
-        // Create inventory UI for the player
-        int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
-        EntityManager.CreateInventoryUIForPlayer(playerEntity, true, screenHeight);
+            for (int i = 0; i < _gameStartData.Value.AllPlayersData.Length; i++)
+            {
+                var playerData = _gameStartData.Value.AllPlayersData[i];
 
-        // Give cop players their starting key item (after UI is created for proper event handling)
-        if (playerType == PlayerType.Cop)
+                // Calculate spawn position (ensure players spawn in safe, open areas)
+                Vector2 playerSpawnPos;
+                if (i == 0)
+                {
+                    // First player spawns at a safe location (left side of center)
+                    playerSpawnPos = new Vector2(baseSpawnPos.X - 128, baseSpawnPos.Y);
+                }
+                else
+                {
+                    // Second player spawns at a safe location (right side of center)  
+                    playerSpawnPos = new Vector2(baseSpawnPos.X + 250, baseSpawnPos.Y);
+                }
+
+                // Determine if this is the local player
+                bool isLocalPlayer = playerData.PlayerId == _gameStartData.Value.LocalPlayerId;
+
+                // Local player always gets PlayerIndex.One for keyboard input, remote players get their assigned index
+                PlayerIndex playerIndex = isLocalPlayer ? PlayerIndex.One : playerData.PlayerIndex;
+                Console.WriteLine($"[GameplayScene] Player {playerData.PlayerId} assigned PlayerIndex: {playerIndex} (original: {playerData.PlayerIndex}, isLocal: {isLocalPlayer})");
+                var playerEntity = EntityManager.CreatePlayer(playerSpawnPos, playerIndex, playerData.PlayerType);
+
+                // Add network component for all players
+                playerEntity.AddComponent(new NetworkComponent(
+                    networkId: playerData.PlayerId,
+                    authority: PrisonBreak.Multiplayer.Core.NetworkConfig.NetworkAuthority.Client,
+                    syncTransform: true,
+                    syncMovement: true,
+                    syncInventory: false,
+                    ownerId: playerData.PlayerId
+                ));
+
+                if (isLocalPlayer)
+                {
+                    localPlayerEntity = playerEntity;
+                    Console.WriteLine($"[GameplayScene] Local player created with PlayerIndex: {playerIndex}");
+                    Console.WriteLine($"[GameplayScene] Local player has PlayerInputComponent: {playerEntity.HasComponent<PlayerInputComponent>()}");
+
+                    // Create inventory UI only for local player
+                    int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
+                    EntityManager.CreateInventoryUIForPlayer(playerEntity, true, screenHeight);
+                }
+                else
+                {
+                    // Remove PlayerInputComponent from remote players (they shouldn't be controllable locally)
+                    if (playerEntity.HasComponent<PlayerInputComponent>())
+                    {
+                        playerEntity.RemoveComponent<PlayerInputComponent>();
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Single-player: Create only local player (existing logic)
+            PlayerType playerType = _gameStartData?.PlayerType ?? PlayerType.Prisoner;
+            PlayerIndex playerIndex = _gameStartData?.PlayerIndex ?? PlayerIndex.One;
+
+            localPlayerEntity = EntityManager.CreatePlayer(baseSpawnPos, playerIndex, playerType);
+            Console.WriteLine($"[GameplayScene] Single-player mode");
+
+            // Create inventory UI for single player
+            int screenHeight = graphicsDevice.PresentationParameters.Bounds.Height;
+            EntityManager.CreateInventoryUIForPlayer(localPlayerEntity, true, screenHeight);
+        }
+
+        // Give cop players their starting key item (only for local player to avoid duplicates)
+        if (localPlayerEntity != null && localPlayerEntity.HasComponent<PlayerTypeComponent>() &&
+            localPlayerEntity.GetComponent<PlayerTypeComponent>().Type == PlayerType.Cop)
         {
             try
             {
                 var keyItem = EntityManager.CreateKey();
-                bool keyAdded = _inventorySystem.TryAddItem(playerEntity, keyItem);
+                bool keyAdded = _inventorySystem.TryAddItem(localPlayerEntity, keyItem);
                 if (keyAdded)
                 {
-                    Console.WriteLine($"Human cop player {playerEntity.Id} received starting key");
+                    Console.WriteLine($"Human cop player {localPlayerEntity.Id} received starting key");
                 }
                 else
                 {
-                    Console.WriteLine($"Warning: Could not add starting key to cop player {playerEntity.Id} inventory");
+                    Console.WriteLine($"Warning: Could not add starting key to cop player {localPlayerEntity.Id} inventory");
                 }
             }
             catch (Exception ex)
@@ -246,33 +362,82 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             }
         }
 
-        // Create cop entities (same as Game1)
-        Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
-        Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
-
-        var cop1 = EntityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
-        var cop2 = EntityManager.CreateCop(copStartPos2, AIBehavior.Wander);
-
-        // Give AI cops their starting key items
-        try
+        // Create AI cop entities - only host creates, clients receive via network
+        if (_networkManager == null || _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
         {
-            var keyItem1 = EntityManager.CreateKey();
-            var keyItem2 = EntityManager.CreateKey();
+            // Host or single-player: Create AI cops and broadcast to clients
+            Vector2 copStartPos1 = new(_roomBounds.Left + 50, _roomBounds.Top + 50);
+            Vector2 copStartPos2 = new(_roomBounds.Right - 100, _roomBounds.Bottom - 100);
 
-            _inventorySystem.TryAddItem(cop1, keyItem1);
-            _inventorySystem.TryAddItem(cop2, keyItem2);
+            var cop1 = EntityManager.CreateCop(copStartPos1, AIBehavior.Patrol);
+            var cop2 = EntityManager.CreateCop(copStartPos2, AIBehavior.Wander);
+            
+            // Override CopTag with deterministic IDs for network synchronization
+            cop1.AddComponent(new CopTag(1001)); // Deterministic cop ID
+            cop2.AddComponent(new CopTag(1002)); // Deterministic cop ID
 
-            Console.WriteLine($"AI cops {cop1.Id} and {cop2.Id} received starting keys");
+            // In multiplayer, send entity spawn messages to clients
+            if (_networkManager != null && _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+            {
+                var spawn1 = new EntitySpawnMessage(1001, "cop", copStartPos1, _roomBounds, AIBehavior.Patrol.ToString());
+                var spawn2 = new EntitySpawnMessage(1002, "cop", copStartPos2, _roomBounds, AIBehavior.Wander.ToString());
+                
+                _networkManager.SendEntitySpawn(spawn1);
+                _networkManager.SendEntitySpawn(spawn2);
+                
+                Console.WriteLine("[GameplayScene] Host sent AI cop spawn messages to clients");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"Warning: Could not create starting keys for AI cops: {ex.Message}");
+            // Client: AI cops will be created when spawn messages are received from host
+            Console.WriteLine("[GameplayScene] Client waiting for AI cop spawn messages from host");
+        }
+
+        // Give AI cops their starting key items (only on host/single-player)
+        if (_networkManager == null || _networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+        {
+            try
+            {
+                // Find the AI cops by their deterministic IDs
+                var aiCopsForKeys = EntityManager.GetEntitiesWith<CopTag, AIComponent>()
+                    .Where(e => !e.HasComponent<PlayerTag>())
+                    .ToList();
+
+                foreach (var cop in aiCopsForKeys)
+                {
+                    var keyItem = EntityManager.CreateKey();
+                    bool keyAdded = _inventorySystem.TryAddItem(cop, keyItem);
+                    if (keyAdded)
+                    {
+                        Console.WriteLine($"AI cop {cop.GetComponent<CopTag>().CopId} received starting key");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Warning: Could not add starting key to AI cop {cop.GetComponent<CopTag>().CopId} inventory");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not create starting keys for AI cops: {ex.Message}");
+            }
         }
 
         // Add bounds constraints to all entities (same as Game1)
-        EntityManager.AddBoundsConstraint(playerEntity, _roomBounds, false); // Player clamps
-        EntityManager.AddBoundsConstraint(cop1, _roomBounds, true); // Cops reflect
-        EntityManager.AddBoundsConstraint(cop2, _roomBounds, true);
+        if (localPlayerEntity != null)
+        {
+            EntityManager.AddBoundsConstraint(localPlayerEntity, _roomBounds, false); // Player clamps
+        }
+        
+        // Add bounds constraints to AI cops (only if they exist on this client)
+        var aiCops = EntityManager.GetEntitiesWith<CopTag, AIComponent>()
+            .Where(e => !e.HasComponent<PlayerTag>())
+            .ToList();
+        foreach (var cop in aiCops)
+        {
+            EntityManager.AddBoundsConstraint(cop, _roomBounds, true); // Cops reflect
+        }
 
         // Create test items and chests for interaction system testing
         CreateTestItems();
@@ -288,7 +453,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Subscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Subscribe<ChestUICloseEvent>(OnChestUIClose);
 
-        Console.WriteLine($"GameplayScene initialized with PlayerType: {playerType}");
+        Console.WriteLine($"[GameplayScene] Initialization complete");
     }
 
     /// <summary>
@@ -301,18 +466,48 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             // Create a test item near the player for pickup testing
             Vector2 testItemPos = new Vector2(_roomBounds.Left + 200, _roomBounds.Top + 100);
             var testItem = EntityManager.CreateItemAtPosition("key", testItemPos);
-            Console.WriteLine($"Created test key item at {testItemPos}");
+            
+            // Add NetworkComponent to item for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testItem);
+                Console.WriteLine($"Created test key item at {testItemPos} with NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created test key item at {testItemPos}");
+            }
 
             // Create a test chest with some items
             Vector2 testChestPos = new Vector2(_roomBounds.Right - 200, _roomBounds.Top + 150);
             string[] chestItems = { "key" }; // Put a key in the chest
             var testChest = EntityManager.CreateChest(testChestPos, chestItems);
-            Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items");
+            
+            // Add NetworkComponent to chest for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testChest);
+                Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items and NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created test chest at {testChestPos} with {chestItems.Length} items");
+            }
 
             // Create another test item on the opposite side
             Vector2 testItemPos2 = new Vector2(_roomBounds.Right - 150, _roomBounds.Bottom - 100);
             var testItem2 = EntityManager.CreateItemAtPosition("key", testItemPos2);
-            Console.WriteLine($"Created second test key item at {testItemPos2}");
+            
+            // Add NetworkComponent to item for multiplayer synchronization
+            if (_networkManager != null)
+            {
+                NetworkInventorySystem.AssignNetworkIdToItem(testItem2);
+                Console.WriteLine($"Created second test key item at {testItemPos2} with NetworkComponent");
+            }
+            else
+            {
+                Console.WriteLine($"Created second test key item at {testItemPos2}");
+            }
         }
         catch (Exception ex)
         {
@@ -435,12 +630,53 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         if (_inventorySystem == null || _currentChestEntity == null)
             return;
 
-        // Get the player entity (assume first player for now)
-        var playerEntities = EntityManager.GetEntitiesWith<PlayerTag>();
-        var playerEntity = playerEntities.FirstOrDefault();
+        // Get the LOCAL player entity (the one this client controls)
+        var localPlayerEntities = EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>();
+        var playerEntity = localPlayerEntities.FirstOrDefault();
         if (playerEntity == null)
+        {
+            Console.WriteLine("[GameplayScene] Could not find local player entity for chest interaction");
             return;
+        }
 
+        // Check if we're in multiplayer mode
+        bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != NetworkConfig.GameMode.SinglePlayer;
+        
+        if (isMultiplayer)
+        {
+            // Send chest transfer through network
+            if (playerEntity.HasComponent<NetworkComponent>() && _currentChestEntity.HasComponent<NetworkComponent>())
+            {
+                var playerNetworkId = playerEntity.GetComponent<NetworkComponent>().NetworkId;
+                var chestNetworkId = _currentChestEntity.GetComponent<NetworkComponent>().NetworkId;
+                
+                string action = _isPlayerInventorySelected ? "transfer_to_chest" : "transfer_to_player";
+                var transferMessage = new ChestInteractionMessage(playerNetworkId, chestNetworkId, action, _selectedSlotIndex);
+                
+                // Both host and client send the message through networking
+                // Host will process it in NetworkManager and broadcast the result
+                // Client will send it as a request to host
+                _networkManager.SendChestInteraction(transferMessage);
+                
+                if (_networkManager.IsHost)
+                {
+                    Console.WriteLine($"[GameplayScene] Host sent chest transfer for processing: {action}");
+                }
+                else
+                {
+                    Console.WriteLine($"[GameplayScene] Client requested chest transfer: {action}");
+                }
+            }
+        }
+        else
+        {
+            // Single-player: process locally
+            ProcessLocalItemTransfer(playerEntity);
+        }
+    }
+    
+    private void ProcessLocalItemTransfer(Entity playerEntity)
+    {
         bool transferSuccess = false;
 
         if (_isPlayerInventorySelected)
@@ -472,8 +708,8 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     {
         if (_isPlayerInventorySelected)
         {
-            // Get player inventory size
-            var playerEntity = EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault();
+            // Get LOCAL player inventory size
+            var playerEntity = EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>().FirstOrDefault();
             if (playerEntity != null && playerEntity.HasComponent<InventoryComponent>())
             {
                 return playerEntity.GetComponent<InventoryComponent>().MaxSlots;
@@ -494,7 +730,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private void SendSlotSelectedEvent()
     {
         Entity targetContainer = _isPlayerInventorySelected ?
-            EntityManager.GetEntitiesWith<PlayerTag>().FirstOrDefault() :
+            EntityManager.GetEntitiesWith<PlayerTag, PlayerInputComponent>().FirstOrDefault() :
             _currentChestEntity;
 
         if (targetContainer != null)
@@ -511,6 +747,17 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         EventBus.Unsubscribe<TeleportEvent>(OnTeleport);
         EventBus.Unsubscribe<ChestUIOpenEvent>(OnChestUIOpen);
         EventBus.Unsubscribe<ChestUICloseEvent>(OnChestUIClose);
+
+        // Clean up multiplayer entities if in multiplayer mode
+        if (_networkManager != null && _networkManager.CurrentGameMode != PrisonBreak.Multiplayer.Core.NetworkConfig.GameMode.SinglePlayer)
+        {
+            // Log multiplayer entity cleanup
+            var networkedEntities = EntityManager.GetEntitiesWith<NetworkComponent>();
+            Console.WriteLine($"[GameplayScene] Cleaning up {networkedEntities.Count()} networked entities on scene exit");
+
+            // EntityManager.Clear() in base.OnExit() will handle actual cleanup
+            // This is just for logging and future enhanced cleanup if needed
+        }
 
         base.OnExit();
     }

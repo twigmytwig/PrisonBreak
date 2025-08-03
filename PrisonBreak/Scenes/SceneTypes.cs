@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using PrisonBreak.ECS;
+using PrisonBreak.Core.Networking;
 
 namespace PrisonBreak.Scenes;
 
@@ -10,6 +11,7 @@ public enum SceneType
 {
     StartMenu,
     Gameplay,
+    MultiplayerLobby,
     PauseMenu,
     GameOver,
     Settings
@@ -41,10 +43,27 @@ public struct GameStartData
     public PlayerIndex PlayerIndex;
     public string CustomAnimationName; // For future skin system
     
+    // Multiplayer data - contains info about all players
+    public GameStartPlayerData[] AllPlayersData; // null for single-player
+    public int LocalPlayerId; // which player in AllPlayersData is the local player
+    
+    // Single-player constructor
     public GameStartData(PlayerType playerType, PlayerIndex playerIndex, string customAnimation = null)
     {
         PlayerType = playerType;
         PlayerIndex = playerIndex;
         CustomAnimationName = customAnimation;
+        AllPlayersData = null;
+        LocalPlayerId = -1;
+    }
+    
+    // Multiplayer constructor
+    public GameStartData(PlayerType localPlayerType, PlayerIndex localPlayerIndex, GameStartPlayerData[] allPlayersData, int localPlayerId, string customAnimation = null)
+    {
+        PlayerType = localPlayerType;
+        PlayerIndex = localPlayerIndex;
+        CustomAnimationName = customAnimation;
+        AllPlayersData = allPlayersData;
+        LocalPlayerId = localPlayerId;
     }
 }

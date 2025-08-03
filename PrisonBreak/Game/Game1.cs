@@ -28,6 +28,7 @@ public class Game1 : PrisonBreak.Core.Core
         // Register scenes
         _sceneManager.RegisterScene(SceneType.StartMenu, new StartMenuScene(_eventBus));
         _sceneManager.RegisterScene(SceneType.Gameplay, new GameplayScene(_eventBus));
+        _sceneManager.RegisterScene(SceneType.MultiplayerLobby, new MultiplayerLobbyScene(_eventBus));
 
         // Initialize with start menu
         _sceneManager.Initialize(SceneType.StartMenu);

@@ -31,7 +31,9 @@ public class EventBus
         var eventType = typeof(T);
         if (_handlers.TryGetValue(eventType, out var handlers))
         {
-            foreach (var handler in handlers)
+            // Create a copy of the handlers list to avoid concurrent modification
+            var handlersCopy = new List<Delegate>(handlers);
+            foreach (var handler in handlersCopy)
             {
                 try
                 {
@@ -275,5 +277,44 @@ public struct InventorySlotSelectedEvent
         ContainerEntity = containerEntity;
         SlotIndex = slotIndex;
         IsPlayerInventory = isPlayerInventory;
+    }
+}
+
+// Multiplayer Lobby Events
+public struct PlayerJoinedLobbyEvent
+{
+    public int PlayerId;
+    public string PlayerName;
+    
+    public PlayerJoinedLobbyEvent(int playerId, string playerName)
+    {
+        PlayerId = playerId;
+        PlayerName = playerName;
+    }
+}
+
+public struct PlayerLeftLobbyEvent
+{
+    public int PlayerId;
+    public string Reason;
+    
+    public PlayerLeftLobbyEvent(int playerId, string reason)
+    {
+        PlayerId = playerId;
+        Reason = reason;
+    }
+}
+
+public struct PlayerReadyChangedEvent
+{
+    public int PlayerId;
+    public bool IsReady;
+    public PlayerType SelectedPlayerType;
+    
+    public PlayerReadyChangedEvent(int playerId, bool isReady, PlayerType selectedPlayerType)
+    {
+        PlayerId = playerId;
+        IsReady = isReady;
+        SelectedPlayerType = selectedPlayerType;
     }
 }

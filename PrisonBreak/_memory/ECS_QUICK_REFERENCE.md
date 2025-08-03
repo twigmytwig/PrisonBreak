@@ -38,6 +38,17 @@ var prisoners = entityManager.GetEntitiesWith<PlayerTypeComponent>()
 
 // Get menu items (NEW)
 var menuItems = entityManager.GetEntitiesWith<MenuItemComponent, TransformComponent>();
+
+// Get networked entities (MULTIPLAYER)
+var networkEntities = entityManager.GetEntitiesWith<NetworkComponent>();
+
+// Get entities that need transform sync
+var transformSyncEntities = entityManager.GetEntitiesWith<NetworkComponent, TransformComponent>()
+    .Where(e => e.GetComponent<NetworkComponent>().SyncTransform);
+
+// Get entities owned by specific player
+var playerOwnedEntities = entityManager.GetEntitiesWith<NetworkComponent>()
+    .Where(e => e.GetComponent<NetworkComponent>().OwnerId == playerId);
 ```
 
 ### Modifying Components
@@ -87,6 +98,30 @@ if (entity.HasComponent<CollisionComponent>())
 | `InventoryComponent` | Item storage | `int MaxSlots`, `Entity[] Items`, `int ItemCount` |
 | `ItemComponent` | Item properties | `string ItemName`, `string ItemType`, `bool IsStackable`, `int StackSize` |
 
+### Networking Components (Multiplayer)
+| Component | Purpose | Key Fields | Location |
+|-----------|---------|------------|----------|
+| `NetworkComponent` | Network synchronization | `int NetworkId`, `NetworkConfig.NetworkAuthority Authority`, `bool SyncTransform`, `bool SyncMovement`, `bool SyncInventory`, `int OwnerId` | `PrisonBreak.ECS` (Components.cs) |
+
+### Networking Systems (Multiplayer)
+| System | Purpose | Update Rate | Authority |
+|--------|---------|-------------|-----------|
+| `NetworkManager` | Core networking coordination | Event-driven | Host/Client |
+| `NetworkSyncSystem` | Player position synchronization | 20Hz | Client (for own player) |
+| `NetworkAISystem` | AI cop behavior synchronization | 10Hz | Host only |
+| `NetworkInventorySystem` | Item pickup and chest transfer coordination | Event-driven | Host authoritative |
+
+### Network Messages
+| Message Type | Purpose | Authority | Content |
+|--------------|---------|-----------|---------|
+| `TransformMessage` | Position/rotation sync | Client → Host → Clients | Position, Rotation, Scale |
+| `AIStateMessage` | AI behavior sync | Host → Clients | Behavior, PatrolDirection, StateTimer, TargetPosition |
+| `EntitySpawnMessage` | Entity creation sync | Host → Clients | EntityType, Position, NetworkID, RoomBounds |
+| `CollisionMessage` | Collision result sync | Host → Clients | PlayerID, CopID, NewPosition, NewPatrolDirection |
+| `InteractionRequestMessage` | Item pickup requests | Client → Host | PlayerId, TargetNetworkId, InteractionType, PlayerPosition |
+| `ItemPickupMessage` | Pickup results | Host → Clients | PlayerId, ItemNetworkId, SlotIndex, Success, ItemType |
+| `ChestInteractionMessage` | Chest inventory sync | Bidirectional | Complete inventory state arrays for player and chest |
+
 ### Menu/UI Components (NEW)
 | Component | Purpose | Key Fields |
 |-----------|---------|------------|
@@ -100,10 +135,13 @@ if (entity.HasComponent<CollisionComponent>())
 #### Gameplay Scene
 ```
 1. ComponentInputSystem    - Process player input → events
-2. ComponentMovementSystem - Apply movement from events + tile collision detection
+2. ComponentMovementSystem - Apply movement from events + tile collision detection  
 3. ComponentCollisionSystem - Detect/resolve entity collisions (player-cop)
 4. InventorySystem         - Manage player inventories and item interactions
-5. ComponentRenderSystem   - Draw everything
+5. NetworkManager          - Handle multiplayer networking (if enabled)
+6. NetworkSyncSystem       - Sync player positions (20Hz) 
+7. NetworkAISystem         - Sync AI behavior and positions (10Hz)
+8. ComponentRenderSystem   - Draw everything
 ```
 
 #### Start Menu Scene (NEW)
@@ -277,6 +315,77 @@ if (itemInSlot != null && itemInSlot.HasComponent<ItemComponent>())
 }
 ```
 
+### Networking Pattern (Multiplayer) ✅ IMPLEMENTED
+```csharp
+using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
+
+// Create networked player entity
+var player = entityManager.CreatePlayer(position, PlayerIndex.One, PlayerType.Prisoner);
+player.AddComponent(new NetworkComponent(networkId: 1, NetworkConfig.NetworkAuthority.Client, ownerId: playerId));
+
+// Create networked AI cop (host authority)
+var aiCop = entityManager.CreateCop(position, AIBehavior.Patrol);
+aiCop.AddComponent(new CopTag(1001)); // Deterministic network ID
+
+// Send entity spawn to clients (host only)
+if (networkManager.CurrentGameMode == NetworkConfig.GameMode.LocalHost)
+{
+    var spawnMessage = new EntitySpawnMessage(1001, "cop", position, roomBounds, "Patrol");
+    networkManager.SendEntitySpawn(spawnMessage);
+}
+
+// AI Synchronization (✅ IMPLEMENTED):
+// - NetworkAISystem syncs AI behavior at 10Hz from host to clients
+// - AIStateMessage contains behavior, patrol direction, targets
+// - Only AI cops synced (player cops excluded via filtering)
+// - Collision events networked with authoritative result broadcasting
+
+// Collision Networking (✅ IMPLEMENTED):
+// - Host processes all collisions authoritatively
+// - CollisionMessage broadcasts teleportation results
+// - Clients apply collision results from host
+// - Prevents collision desync between clients
+
+// Inventory Networking (✅ IMPLEMENTED):
+// - Authoritative item pickups prevent duplication
+// - Complete state synchronization for chest transfers
+// - Event-driven UI updates through existing InventorySystem
+using PrisonBreak.Core.Networking;
+
+// Client requests item pickup
+var request = new InteractionRequestMessage
+{
+    PlayerId = localPlayerId,
+    TargetNetworkId = itemEntity.GetComponent<NetworkComponent>().NetworkId,
+    InteractionType = "pickup",
+    PlayerPosition = localPlayerPosition
+};
+networkManager.SendMessage(request);
+
+// Host validates and responds
+public void ProcessInteractionRequest(InteractionRequestMessage message)
+{
+    bool success = ValidatePickupRequest(message);
+    var response = new ItemPickupMessage
+    {
+        PlayerId = message.PlayerId,
+        Success = success,
+        ItemNetworkId = message.TargetNetworkId,
+        // ... other fields
+    };
+    networkManager.BroadcastMessage(response);
+}
+
+// Chest transfers use complete state sync
+var chestMessage = new ChestInteractionMessage
+{
+    PlayerInventoryItems = new string[] { "key", null, "tool" }, // Complete state
+    ChestInventoryItems = new string[] { null, "gold", null }    // Complete state
+};
+```
+
 ## 🔧 System Manager Usage
 
 ### Setup
@@ -288,6 +397,7 @@ systemManager.AddSystem(new ComponentInputSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentMovementSystem(entityManager, eventBus));
 systemManager.AddSystem(new ComponentCollisionSystem(entityManager, eventBus));
 systemManager.AddSystem(new InventorySystem(entityManager, eventBus));
+systemManager.AddSystem(new NetworkManager(eventBus, entityManager)); // ✅ IMPLEMENTED - From PrisonBreak.Managers
 systemManager.AddSystem(new ComponentRenderSystem(entityManager));
 
 // Initialize all systems

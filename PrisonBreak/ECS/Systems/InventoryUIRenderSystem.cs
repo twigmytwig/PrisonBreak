@@ -79,11 +79,8 @@ public class InventoryUIRenderSystem : IGameSystem
 
     private void OnItemAdded(ItemAddedEvent evt)
     {
-        Console.WriteLine($"[DEBUG] InventoryUI: ItemAddedEvent received - PlayerId: {evt.PlayerId}, SlotIndex: {evt.SlotIndex}, ItemEntity: {evt.ItemEntity?.Id}");
-        
         // Find the UI slot entity for this player and slot index
         var slotEntities = _entityManager.GetEntitiesWith<InventorySlotUIComponent>();
-        Console.WriteLine($"[DEBUG] InventoryUI: Found {slotEntities.Count()} slot UI entities");
         
         var targetSlot = slotEntities.FirstOrDefault(entity =>
         {
@@ -93,15 +90,9 @@ public class InventoryUIRenderSystem : IGameSystem
 
         if (targetSlot != null)
         {
-            Console.WriteLine($"[DEBUG] InventoryUI: Found target slot {targetSlot.Id} for player {evt.PlayerId}, slot {evt.SlotIndex}");
             // Update the slot UI to show the new item
             ref var slotUI = ref targetSlot.GetComponent<InventorySlotUIComponent>();
             slotUI.ContainedItem = evt.ItemEntity;
-            Console.WriteLine($"[DEBUG] InventoryUI: Updated slot UI with item {evt.ItemEntity?.Id}");
-        }
-        else
-        {
-            Console.WriteLine($"[DEBUG] InventoryUI: Could not find target slot for player {evt.PlayerId}, slot {evt.SlotIndex}");
         }
     }
 

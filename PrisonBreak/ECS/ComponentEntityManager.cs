@@ -410,7 +410,8 @@ public class ComponentEntityManager
         // Add ItemComponent with data from database
         entity.AddComponent(new ItemComponent
         {
-            ItemName = item.ItemName,
+            ItemId = item.ItemId,      // Store the database ID
+            ItemName = item.ItemName,  // Store the display name
             ItemType = item.ItemType,
             IsStackable = item.IsStackable,
             StackSize = item.StackSize

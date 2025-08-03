@@ -53,8 +53,6 @@ public class MenuRenderSystem : IGameSystem
         var menuItems = _entityManager.GetEntitiesWith<MenuItemComponent, TransformComponent>()
             .OrderBy(e => e.GetComponent<MenuItemComponent>().DrawOrder);
         
-        // Removed excessive debug logging
-        
         foreach (var menuItem in menuItems)
         {
             var transform = menuItem.GetComponent<TransformComponent>();
@@ -66,8 +64,6 @@ public class MenuRenderSystem : IGameSystem
         // Draw text elements (entities with TextComponent)
         var textElements = _entityManager.GetEntitiesWith<TextComponent, TransformComponent>()
             .OrderBy(e => e.GetComponent<TextComponent>().DrawOrder);
-        
-        // Removed excessive debug logging
         
         foreach (var textElement in textElements)
         {

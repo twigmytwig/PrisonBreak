@@ -3,6 +3,9 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using PrisonBreak.Systems;
+using PrisonBreak.Managers;
+using PrisonBreak.Multiplayer.Core;
+using PrisonBreak.Core.Networking;
 
 namespace PrisonBreak.ECS.Systems;
 
@@ -11,6 +14,7 @@ public class InteractionSystem : IGameSystem
     private ComponentEntityManager _entityManager;
     private EventBus _eventBus;
     private InventorySystem _inventorySystem;
+    private NetworkManager _networkManager;
 
     public void SetEntityManager(ComponentEntityManager entityManager)
     {
@@ -25,6 +29,11 @@ public class InteractionSystem : IGameSystem
     public void SetInventorySystem(InventorySystem inventorySystem)
     {
         _inventorySystem = inventorySystem;
+    }
+    
+    public void SetNetworkManager(NetworkManager networkManager)
+    {
+        _networkManager = networkManager;
     }
 
     public void Initialize()
@@ -64,6 +73,44 @@ public class InteractionSystem : IGameSystem
         var nearbyInteractable = FindNearestInteractable(playerCenter);
         if (nearbyInteractable != null)
         {
+            // Check if we're in multiplayer mode
+            bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != NetworkConfig.GameMode.SinglePlayer;
+            bool isHost = _networkManager?.IsHost ?? true;
+            
+            if (isMultiplayer)
+            {
+                // In multiplayer mode: NetworkInventorySystem handles all item interactions
+                // We still process non-item interactions locally (like chests)
+                if (nearbyInteractable.HasComponent<ItemComponent>())
+                {
+                    if (isHost)
+                    {
+                        // Host processes item pickup through NetworkInventorySystem
+                        Console.WriteLine("[InteractionSystem] Host detected item interaction - deferring to NetworkInventorySystem");
+                        // Create a fake interaction request for the host
+                        if (playerEntity.HasComponent<NetworkComponent>() && nearbyInteractable.HasComponent<NetworkComponent>())
+                        {
+                            var playerNetworkId = playerEntity.GetComponent<NetworkComponent>().NetworkId;
+                            var targetNetworkId = nearbyInteractable.GetComponent<NetworkComponent>().NetworkId;
+                            var playerPosition = playerEntity.GetComponent<TransformComponent>().Position;
+                            
+                            var fakeRequest = new InteractionRequestMessage(playerNetworkId, targetNetworkId, "pickup", playerPosition);
+                            
+                            // Find NetworkInventorySystem and process directly
+                            var networkInventorySystem = _networkManager.GetNetworkInventorySystem();
+                            networkInventorySystem?.ProcessInteractionRequest(fakeRequest);
+                        }
+                    }
+                    else
+                    {
+                        // Client sends request to host
+                        Console.WriteLine("[InteractionSystem] Client detected item interaction - deferring to NetworkInventorySystem");
+                    }
+                    return;
+                }
+            }
+            
+            // Process interaction locally (host or single-player, or non-item interactions)
             ProcessInteraction(playerEntity, nearbyInteractable);
         }
     }
@@ -180,8 +227,72 @@ public class InteractionSystem : IGameSystem
 
     private void HandleChestInteraction(Entity playerEntity, Entity chestEntity)
     {
-        // Send chest UI open event
-        _eventBus?.Send(new ChestUIOpenEvent(chestEntity, playerEntity));
+        // Check if we're in multiplayer mode
+        bool isMultiplayer = _networkManager != null && _networkManager.CurrentGameMode != NetworkConfig.GameMode.SinglePlayer;
+        
+        if (isMultiplayer)
+        {
+            // In multiplayer: send chest interaction through network
+            if (playerEntity.HasComponent<NetworkComponent>() && chestEntity.HasComponent<NetworkComponent>())
+            {
+                var playerNetworkId = playerEntity.GetComponent<NetworkComponent>().NetworkId;
+                var chestNetworkId = chestEntity.GetComponent<NetworkComponent>().NetworkId;
+                
+                var chestMessage = new ChestInteractionMessage(playerNetworkId, chestNetworkId, "open");
+                
+                if (_networkManager.IsHost)
+                {
+                    // Host processes and broadcasts
+                    ProcessChestInteraction(chestMessage);
+                    _networkManager.SendChestInteraction(chestMessage);
+                }
+                else
+                {
+                    // Client sends request to host
+                    _networkManager.SendChestInteraction(chestMessage);
+                }
+                
+                Console.WriteLine($"[InteractionSystem] Chest interaction: Player {playerNetworkId} → Chest {chestNetworkId}");
+            }
+        }
+        else
+        {
+            // Single-player: send chest UI open event directly
+            _eventBus?.Send(new ChestUIOpenEvent(chestEntity, playerEntity));
+        }
+    }
+    
+    /// <summary>
+    /// Process chest interaction (opening/closing)
+    /// </summary>
+    private void ProcessChestInteraction(ChestInteractionMessage message)
+    {
+        // Find entities by network ID
+        var player = FindEntityByNetworkId(message.PlayerId);
+        var chest = FindEntityByNetworkId(message.ChestNetworkId);
+        
+        if (player != null && chest != null)
+        {
+            if (message.Action == "open")
+            {
+                _eventBus?.Send(new ChestUIOpenEvent(chest, player));
+                Console.WriteLine($"[InteractionSystem] Opened chest {message.ChestNetworkId} for player {message.PlayerId}");
+            }
+            else if (message.Action == "close")
+            {
+                _eventBus?.Send(new ChestUICloseEvent(chest, player));
+                Console.WriteLine($"[InteractionSystem] Closed chest {message.ChestNetworkId} for player {message.PlayerId}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Find entity by network ID (copied from NetworkInventorySystem)
+    /// </summary>
+    private Entity FindEntityByNetworkId(int networkId)
+    {
+        var networkedEntities = _entityManager.GetEntitiesWith<NetworkComponent>();
+        return networkedEntities.FirstOrDefault(e => e.GetComponent<NetworkComponent>().NetworkId == networkId);
     }
 
     private void HandleDoorInteraction(Entity playerEntity, Entity doorEntity)
