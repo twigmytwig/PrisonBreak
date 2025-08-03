@@ -31,6 +31,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private NetworkSyncSystem _networkSyncSystem;
     private NetworkAISystem _networkAISystem;
     private NetworkInventorySystem _networkInventorySystem;
+    private NetworkInterpolationSystem _networkInterpolationSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -83,6 +84,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkSyncSystem = new NetworkSyncSystem();
         _networkAISystem = new NetworkAISystem();
         _networkInventorySystem = new NetworkInventorySystem();
+        _networkInterpolationSystem = new NetworkInterpolationSystem();
         // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
         try
         {
@@ -136,6 +138,8 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkInventorySystem.SetEventBus(EventBus);
         _networkInventorySystem.SetInventorySystem(_inventorySystem);
 
+        _networkInterpolationSystem.SetEntityManager(EntityManager);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -148,11 +152,13 @@ public class GameplayScene : Scene, ITransitionDataReceiver
             // Set up NetworkManager connections
             _networkInventorySystem.SetNetworkManager(_networkManager);
             _networkManager.SetNetworkInventorySystem(_networkInventorySystem);
+            _networkManager.SetNetworkInterpolationSystem(_networkInterpolationSystem);
             
             SystemManager.AddSystem(_networkManager); // Add network manager after game logic systems
             SystemManager.AddSystem(_networkSyncSystem); // Add network sync system after network manager
             SystemManager.AddSystem(_networkAISystem); // Add AI sync system after network sync
             SystemManager.AddSystem(_networkInventorySystem); // Add inventory sync system
+            SystemManager.AddSystem(_networkInterpolationSystem); // Add interpolation system before rendering
         }
         SystemManager.AddSystem(_renderSystem);
         SystemManager.AddSystem(_inventoryUIRenderSystem);
@@ -304,6 +310,17 @@ public class GameplayScene : Scene, ITransitionDataReceiver
                     syncInventory: false,
                     ownerId: playerData.PlayerId
                 ));
+
+                // Add interpolation component for remote players (not local player)
+                if (!isLocalPlayer)
+                {
+                    var transform = playerEntity.GetComponent<TransformComponent>();
+                    playerEntity.AddComponent(new InterpolationComponent(
+                        transform.Position, 
+                        transform.Rotation, 
+                        1.0 / 20.0 // 20Hz player network update rate
+                    ));
+                }
 
                 if (isLocalPlayer)
                 {

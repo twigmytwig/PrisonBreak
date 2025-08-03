@@ -153,10 +153,10 @@ public class NetworkAISystem : IGameSystem
     }
     
     /// <summary>
-    /// Client: Apply received transform update to AI entity
+    /// Client: Apply received transform update to AI entity using interpolation
     /// Called by NetworkManager when transform message is received for AI entities
     /// </summary>
-    public void ApplyAITransformUpdate(TransformMessage message)
+    public void ApplyAITransformUpdate(TransformMessage message, GameTime gameTime)
     {
         // Find the AI entity by cop ID (exclude player cops)
         var aiEntities = _entityManager.GetEntitiesWith<CopTag, TransformComponent>()
@@ -165,15 +165,29 @@ public class NetworkAISystem : IGameSystem
         
         if (targetEntity != null)
         {
-            // Update the transform component with received position
-            ref var transform = ref targetEntity.GetComponent<TransformComponent>();
             var receivedTransform = message.ToComponent();
             
-            transform.Position = receivedTransform.Position;
-            transform.Rotation = receivedTransform.Rotation;
-            transform.Scale = receivedTransform.Scale;
-            
-            Console.WriteLine($"[NetworkAISystem] Applied transform update for cop {message.EntityId}: {transform.Position}");
+            // Check if entity has interpolation component for smooth movement
+            if (targetEntity.HasComponent<InterpolationComponent>())
+            {
+                // Use interpolation for smooth AI movement
+                var interpolationSystem = _networkManager.GetNetworkInterpolationSystem();
+                if (interpolationSystem != null)
+                {
+                    interpolationSystem.SetInterpolationTarget(targetEntity, receivedTransform.Position, receivedTransform.Rotation, gameTime);
+                    Console.WriteLine($"[NetworkAISystem] Set interpolation target for cop {message.EntityId}: {receivedTransform.Position}");
+                }
+            }
+            else
+            {
+                // Fallback to direct position update for AI entities without interpolation
+                ref var transform = ref targetEntity.GetComponent<TransformComponent>();
+                transform.Position = receivedTransform.Position;
+                transform.Rotation = receivedTransform.Rotation;
+                transform.Scale = receivedTransform.Scale;
+                
+                Console.WriteLine($"[NetworkAISystem] Applied direct transform update for cop {message.EntityId}: {transform.Position}");
+            }
         }
         else
         {

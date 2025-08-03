@@ -23,6 +23,8 @@ public class NetworkManager : IGameSystem
     private readonly EventBus _eventBus;
     private ComponentEntityManager _entityManager;
     private NetworkInventorySystem _networkInventorySystem;
+    private NetworkInterpolationSystem _networkInterpolationSystem;
+    private GameTime _currentGameTime;
 
     // Network state
     public NetworkConfig.GameMode CurrentGameMode { get; private set; }
@@ -71,12 +73,25 @@ public class NetworkManager : IGameSystem
         _networkInventorySystem = networkInventorySystem;
     }
 
+    public void SetNetworkInterpolationSystem(NetworkInterpolationSystem networkInterpolationSystem)
+    {
+        _networkInterpolationSystem = networkInterpolationSystem;
+    }
+
     /// <summary>
     /// Get the NetworkInventorySystem from the current scene's system manager
     /// </summary>
     public NetworkInventorySystem GetNetworkInventorySystem()
     {
         return _networkInventorySystem;
+    }
+
+    /// <summary>
+    /// Get the NetworkInterpolationSystem from the current scene's system manager
+    /// </summary>
+    public NetworkInterpolationSystem GetNetworkInterpolationSystem()
+    {
+        return _networkInterpolationSystem;
     }
 
     /// <summary>
@@ -156,6 +171,9 @@ public class NetworkManager : IGameSystem
 
     public void Update(GameTime gameTime)
     {
+        // Store current game time for use in message handlers
+        _currentGameTime = gameTime;
+
         // Update network components based on game mode
         switch (CurrentGameMode)
         {
@@ -983,13 +1001,27 @@ public class NetworkManager : IGameSystem
             return;
         }
 
-        // Apply the networked transform (only if it's different to avoid unnecessary updates)
-        var currentTransform = entity.GetComponent<TransformComponent>();
-        var newTransform = transformMsg.ToComponent();
-
-        if (Vector2.Distance(currentTransform.Position, newTransform.Position) > 0.1f)
+        // Check if entity has interpolation component for smooth movement
+        if (entity.HasComponent<InterpolationComponent>())
         {
-            entity.AddComponent(newTransform); // AddComponent replaces existing component for structs
+            // Use interpolation for smooth movement
+            var interpolationSystem = GetNetworkInterpolationSystem();
+            if (interpolationSystem != null)
+            {
+                var newTransform = transformMsg.ToComponent();
+                interpolationSystem.SetInterpolationTarget(entity, newTransform.Position, newTransform.Rotation, _currentGameTime);
+            }
+        }
+        else
+        {
+            // Fallback to direct position update for entities without interpolation
+            var currentTransform = entity.GetComponent<TransformComponent>();
+            var newTransform = transformMsg.ToComponent();
+
+            if (Vector2.Distance(currentTransform.Position, newTransform.Position) > 0.1f)
+            {
+                entity.AddComponent(newTransform); // AddComponent replaces existing component for structs
+            }
         }
     }
 
@@ -1046,6 +1078,14 @@ public class NetworkManager : IGameSystem
 
                 // Override with network entity ID for synchronization
                 copEntity.AddComponent(new CopTag(entitySpawnMsg.NetworkEntityId));
+
+                // Add interpolation component for smooth AI movement
+                var transform = copEntity.GetComponent<TransformComponent>();
+                copEntity.AddComponent(new InterpolationComponent(
+                    transform.Position, 
+                    transform.Rotation, 
+                    1.0 / 10.0 // 10Hz AI network update rate
+                ));
 
                 // Add bounds constraints for AI cops using room bounds from spawn message
                 _entityManager.AddBoundsConstraint(copEntity, entitySpawnMsg.RoomBounds, true); // Cops reflect

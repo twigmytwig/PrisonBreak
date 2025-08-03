@@ -347,3 +347,27 @@ public struct NetworkComponent
         OwnerId = ownerId;
     }
 }
+
+// Network interpolation component for smooth remote entity movement
+// Only added to remote networked entities that need position interpolation
+public struct InterpolationComponent
+{
+    public Vector2 PreviousPosition;      // Position at last network update
+    public Vector2 TargetPosition;        // Target position from latest network update
+    public float PreviousRotation;        // Rotation at last network update
+    public float TargetRotation;          // Target rotation from latest network update
+    public double InterpolationStartTime; // When interpolation began
+    public double NetworkUpdateInterval;  // Expected time between network updates
+    public bool HasValidTarget;           // Whether we have a target to interpolate to
+
+    public InterpolationComponent(Vector2 initialPosition, float initialRotation, double networkUpdateInterval)
+    {
+        PreviousPosition = initialPosition;
+        TargetPosition = initialPosition;
+        PreviousRotation = initialRotation;
+        TargetRotation = initialRotation;
+        InterpolationStartTime = 0.0;
+        NetworkUpdateInterval = networkUpdateInterval;
+        HasValidTarget = false;
+    }
+}
