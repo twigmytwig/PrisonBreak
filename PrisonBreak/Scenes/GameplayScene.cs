@@ -31,6 +31,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
     private NetworkSyncSystem _networkSyncSystem;
     private NetworkAISystem _networkAISystem;
     private NetworkInventorySystem _networkInventorySystem;
+    private InterpolationSystem _interpolationSystem;
 
     private Tilemap _tilemap;
     private Rectangle _roomBounds;
@@ -83,6 +84,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkSyncSystem = new NetworkSyncSystem();
         _networkAISystem = new NetworkAISystem();
         _networkInventorySystem = new NetworkInventorySystem();
+        _interpolationSystem = new InterpolationSystem();
         // Try to get existing NetworkManager (from lobby), otherwise we're in single-player
         try
         {
@@ -136,6 +138,9 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         _networkInventorySystem.SetEventBus(EventBus);
         _networkInventorySystem.SetInventorySystem(_inventorySystem);
 
+        _interpolationSystem.SetEntityManager(EntityManager);
+        _interpolationSystem.SetEventBus(EventBus);
+
         // Add systems to manager in execution order (same as Game1)
         SystemManager.AddSystem(_inputSystem);
         SystemManager.AddSystem(_interactionSystem);
@@ -143,6 +148,7 @@ public class GameplayScene : Scene, ITransitionDataReceiver
         SystemManager.AddSystem(_movementSystem);
         SystemManager.AddSystem(_collisionSystem);
         SystemManager.AddSystem(_inventorySystem);
+        SystemManager.AddSystem(_interpolationSystem); // Add interpolation before render system
         if (_networkManager != null) // Only add NetworkManager in multiplayer mode
         {
             // Set up NetworkManager connections

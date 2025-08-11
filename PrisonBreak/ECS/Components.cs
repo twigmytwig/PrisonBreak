@@ -347,3 +347,62 @@ public struct NetworkComponent
         OwnerId = ownerId;
     }
 }
+
+// Network interpolation component for smooth movement
+// Added to networked entities that receive position updates from the network
+public struct InterpolationComponent
+{
+    public Vector2 FromPosition;      // Start position for interpolation
+    public Vector2 ToPosition;        // Target position for interpolation  
+    public float Progress;            // 0.0 to 1.0 interpolation progress
+    public float Duration;            // How long the interpolation takes
+    public bool IsInterpolating;      // Currently interpolating flag
+    public double LastUpdateTime;     // When we received the last network update
+
+    public InterpolationComponent(Vector2 fromPosition, Vector2 toPosition, float duration = 0.05f)
+    {
+        FromPosition = fromPosition;
+        ToPosition = toPosition;
+        Progress = 0f;
+        Duration = duration;
+        IsInterpolating = true;
+        LastUpdateTime = 0.0;
+    }
+
+    public static InterpolationComponent StartInterpolation(Vector2 from, Vector2 to, double currentTime, float duration = 0.05f)
+    {
+        return new InterpolationComponent(from, to, duration)
+        {
+            LastUpdateTime = currentTime
+        };
+    }
+}
+
+// Separate rendering position from authoritative transform for smooth visuals
+// Used for networked entities to show interpolated positions
+public struct RenderTransformComponent
+{
+    public Vector2 RenderPosition;    // Visual position (interpolated)
+    public float RenderRotation;      // Visual rotation (interpolated)
+    public Vector2 RenderScale;       // Visual scale (interpolated)
+
+    public RenderTransformComponent(Vector2 position)
+    {
+        RenderPosition = position;
+        RenderRotation = 0f;
+        RenderScale = Vector2.One;
+    }
+
+    public RenderTransformComponent(Vector2 position, float rotation, Vector2 scale)
+    {
+        RenderPosition = position;
+        RenderRotation = rotation;
+        RenderScale = scale;
+    }
+
+    // Copy from TransformComponent for initialization
+    public static RenderTransformComponent FromTransform(TransformComponent transform)
+    {
+        return new RenderTransformComponent(transform.Position, transform.Rotation, transform.Scale);
+    }
+}

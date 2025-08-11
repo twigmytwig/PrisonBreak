@@ -524,7 +524,7 @@ public class NetworkManager : IGameSystem
         if (CurrentGameMode == NetworkConfig.GameMode.LocalHost)
         {
             Console.WriteLine($"[NetworkManager] Host sending chest interaction: Player {chestMessage.PlayerId} action {chestMessage.Action}");
-            
+
             // Process transfer locally on host before broadcasting
             if (chestMessage.Action == "transfer_to_chest" || chestMessage.Action == "transfer_to_player")
             {
@@ -536,7 +536,7 @@ public class NetworkManager : IGameSystem
                 }
                 Console.WriteLine($"[NetworkManager] Host processed own transfer locally: {chestMessage.Action}, Success: {success}");
             }
-            
+
             _networkServer?.BroadcastMessage(chestMessage);
         }
         else if (CurrentGameMode == NetworkConfig.GameMode.Client)
@@ -983,13 +983,19 @@ public class NetworkManager : IGameSystem
             return;
         }
 
-        // Apply the networked transform (only if it's different to avoid unnecessary updates)
+        // Apply the networked transform with interpolation for smooth movement
         var currentTransform = entity.GetComponent<TransformComponent>();
         var newTransform = transformMsg.ToComponent();
 
         if (Vector2.Distance(currentTransform.Position, newTransform.Position) > 0.1f)
         {
-            entity.AddComponent(newTransform); // AddComponent replaces existing component for structs
+            // For networked entities, start interpolation instead of immediate update
+            // This creates smooth movement between network updates
+            InterpolationSystem.StartInterpolation(entity, newTransform.Position);
+            
+            // Update the authoritative transform for game logic (collision, etc.)
+            // but visual rendering will use the interpolated RenderTransformComponent
+            entity.AddComponent(newTransform);
         }
     }
 
@@ -1193,7 +1199,7 @@ public class NetworkManager : IGameSystem
             // Check if the message is for the local player by comparing network IDs
             var localPlayerNetworkId = localPlayer.HasComponent<NetworkComponent>() ?
                 localPlayer.GetComponent<NetworkComponent>().NetworkId : -1;
-            
+
             if (localPlayerNetworkId == message.PlayerId)
             {
                 Console.WriteLine($"[NetworkManager] Client applying inventory states for LOCAL player transfer (NetworkId: {message.PlayerId})");
@@ -1204,7 +1210,7 @@ public class NetworkManager : IGameSystem
                 Console.WriteLine($"[NetworkManager] Transfer was for remote player {message.PlayerId}, local player is {localPlayerNetworkId} - not applying to local inventory");
             }
         }
-        
+
         // Always update the chest inventory for all players (chest is shared)
         if (chest.HasComponent<ContainerComponent>() && message.ChestInventoryItems != null)
         {
@@ -1243,12 +1249,12 @@ public class NetworkManager : IGameSystem
         if (player.HasComponent<InventoryComponent>() && message.PlayerInventoryItems != null)
         {
             Console.WriteLine($"[NetworkManager] Applying player inventory state from host");
-            
+
             var inventorySystem = FindInventorySystem();
             if (inventorySystem != null)
             {
                 ref var playerInventory = ref player.GetComponent<InventoryComponent>();
-                
+
                 // Clear existing inventory using direct assignment (we'll fire events manually)
                 for (int i = 0; i < playerInventory.MaxSlots; i++)
                 {
@@ -1261,7 +1267,7 @@ public class NetworkManager : IGameSystem
                     playerInventory.Items[i] = null;
                 }
                 playerInventory.ItemCount = 0;
-                
+
                 // Apply new inventory state and fire events
                 for (int i = 0; i < Math.Min(playerInventory.MaxSlots, message.PlayerInventoryItems.Length); i++)
                 {
@@ -1270,13 +1276,13 @@ public class NetworkManager : IGameSystem
                         var item = _entityManager.CreateItem(message.PlayerInventoryItems[i]);
                         playerInventory.Items[i] = item;
                         playerInventory.ItemCount++;
-                        
+
                         // Fire ItemAddedEvent for UI updates
                         var playerId = player.HasComponent<PlayerTag>() ? player.Id : -1;
                         _eventBus?.Send(new ItemAddedEvent(playerId, item, i));
                     }
                 }
-                
+
                 Console.WriteLine($"[NetworkManager] Applied player inventory with UI events");
             }
             else

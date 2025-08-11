@@ -77,11 +77,12 @@ public class ComponentRenderSystem : IGameSystem
             .ToList();
         
         // Sort entities by Y position for proper depth ordering (back to front)
+        // Use render position if available, otherwise use authoritative position
         renderableEntities.Sort((a, b) => 
         {
-            var transformA = a.GetComponent<TransformComponent>();
-            var transformB = b.GetComponent<TransformComponent>();
-            return transformA.Position.Y.CompareTo(transformB.Position.Y);
+            var posA = GetRenderPosition(a);
+            var posB = GetRenderPosition(b);
+            return posA.Y.CompareTo(posB.Y);
         });
         
         // Draw all sprites
@@ -90,11 +91,11 @@ public class ComponentRenderSystem : IGameSystem
             var transform = entity.GetComponent<TransformComponent>();
             var sprite = entity.GetComponent<SpriteComponent>();
             
-            DrawSprite(spriteBatch, sprite, transform);
+            DrawSprite(spriteBatch, sprite, transform, entity);
         }
     }
     
-    private void DrawSprite(SpriteBatch spriteBatch, SpriteComponent sprite, TransformComponent transform)
+    private void DrawSprite(SpriteBatch spriteBatch, SpriteComponent sprite, TransformComponent transform, Entity entity)
     {
         if (sprite.Sprite == null || sprite.Sprite.Animation == null) return;
         
@@ -102,9 +103,51 @@ public class ComponentRenderSystem : IGameSystem
         var currentRegion = sprite.Sprite.CurrentRegion;
         if (currentRegion == null) return;
         
+        // Use render transform if available (for interpolated networked entities),
+        // otherwise fall back to authoritative transform
+        var renderPosition = GetRenderPosition(entity);
+        var renderRotation = GetRenderRotation(entity, transform);
+        var renderScale = GetRenderScale(entity, transform);
+        
         // Draw the current frame directly using the texture region
-        currentRegion.Draw(spriteBatch, transform.Position, sprite.Tint, transform.Rotation, 
-            Vector2.Zero, transform.Scale, SpriteEffects.None, 0f);
+        currentRegion.Draw(spriteBatch, renderPosition, sprite.Tint, renderRotation, 
+            Vector2.Zero, renderScale, SpriteEffects.None, 0f);
+    }
+    
+    /// <summary>
+    /// Get the position to use for rendering - interpolated if available, otherwise authoritative
+    /// </summary>
+    private Vector2 GetRenderPosition(Entity entity)
+    {
+        if (entity.HasComponent<RenderTransformComponent>())
+        {
+            return entity.GetComponent<RenderTransformComponent>().RenderPosition;
+        }
+        return entity.GetComponent<TransformComponent>().Position;
+    }
+    
+    /// <summary>
+    /// Get the rotation to use for rendering - interpolated if available, otherwise authoritative
+    /// </summary>
+    private float GetRenderRotation(Entity entity, TransformComponent fallback)
+    {
+        if (entity.HasComponent<RenderTransformComponent>())
+        {
+            return entity.GetComponent<RenderTransformComponent>().RenderRotation;
+        }
+        return fallback.Rotation;
+    }
+    
+    /// <summary>
+    /// Get the scale to use for rendering - interpolated if available, otherwise authoritative
+    /// </summary>
+    private Vector2 GetRenderScale(Entity entity, TransformComponent fallback)
+    {
+        if (entity.HasComponent<RenderTransformComponent>())
+        {
+            return entity.GetComponent<RenderTransformComponent>().RenderScale;
+        }
+        return fallback.Scale;
     }
     
     private void DrawDebugInformation(SpriteBatch spriteBatch)
